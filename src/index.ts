@@ -107,7 +107,6 @@ function createPreprocessor(
 
 		entries.add(file.originalPath);
 		if (service === null) {
-			console.log(esbuild);
 			service = await esbuild.startService();
 			emitter.on("exit", done => {
 				service!.stop();
