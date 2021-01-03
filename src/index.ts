@@ -123,6 +123,11 @@ function createPreprocessor(
 			}
 			done(null, code);
 		} catch (err) {
+			// Prevent flood of error logs when we shutdown
+			if (stopped) {
+				done(null, content);
+			}
+
 			log.error(err.message);
 			if (--count === 0) {
 				afterPreprocess(startTime);
