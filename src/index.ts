@@ -126,6 +126,7 @@ function createPreprocessor(
 			// Prevent flood of error logs when we shutdown
 			if (stopped) {
 				done(null, content);
+				return;
 			}
 
 			log.error(err.message);
