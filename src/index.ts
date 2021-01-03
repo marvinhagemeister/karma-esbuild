@@ -80,35 +80,36 @@ function createPreprocessor(
 			done();
 		});
 
-		const onWatch = async () => {
-			const start = Date.now();
-			log.info("Compiling...");
-
-			await Promise.all(Array.from(entries).map(entry => build(entry)));
-
-			logDone(Date.now() - start);
+		const onWatch = debounce(async () => {
 			emitter.refreshFiles();
-		};
+		}, 100);
 		watcher.on("change", onWatch);
 		watcher.on("add", onWatch);
 	}
 
-	let start = 0;
-	const afterPreprocess = debounce(() => {
-		logDone(Date.now() - start);
-		start = 0;
-	}, 100);
+	const afterPreprocess = (time: number) => {
+		logDone(Date.now() - time);
+	};
 
+	let stopped = false;
+	let count = 0;
+	let startTime = 0;
 	return async function preprocess(content, file, done) {
-		if (start === 0) {
+		// Prevent service closed message when we are still processing
+		if (stopped) return;
+
+		if (count === 0) {
 			log.info("Compiling...");
-			start = Date.now();
+			startTime = Date.now();
 		}
+
+		count++;
 
 		entries.add(file.originalPath);
 		if (service === null) {
 			service = await esbuild.startService();
 			emitter.on("exit", done => {
+				stopped = true;
 				service!.stop();
 				done();
 			});
@@ -117,12 +118,16 @@ function createPreprocessor(
 		try {
 			const result = await build([file.originalPath]);
 			const code = result.outputFiles[0].text;
+			if (--count === 0) {
+				afterPreprocess(startTime);
+			}
 			done(null, code);
 		} catch (err) {
 			log.error(err.message);
+			if (--count === 0) {
+				afterPreprocess(startTime);
+			}
 			done(null, content);
-		} finally {
-			afterPreprocess();
 		}
 	};
 }
