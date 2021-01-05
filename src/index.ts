@@ -72,7 +72,7 @@ function createPreprocessor(
 		watcher = chokidar.watch([basePath], {
 			ignoreInitial: true,
 			// Ignore dot files and anything from node_modules
-			ignored: /((^|[/\\])\..|\/node_modules\/)/,
+			ignored: /((^|[/\\])\..|node_modules)/,
 		});
 		// Register shutdown handler
 		emitter.on("exit", done => {
