@@ -65,7 +65,8 @@ function createPreprocessor(
 	const entries = new Set<string>();
 
 	let watcher: FSWatcher | null = null;
-	if (!config.singleRun && config.autoWatch) {
+	const watchMode = !config.singleRun && !!config.autoWatch;
+	if (watchMode) {
 		// Initialize watcher to listen for changes in basePath so
 		// that we'll be notified of any new files
 		const basePath = config.basePath || process.cwd();
@@ -123,9 +124,12 @@ function createPreprocessor(
 			}
 			done(null, code);
 		} catch (err) {
+			// Use a non-empty string because `karma-sourcemap` crashes
+			// otherwse.
+			const dummy = `(function () {})()`;
 			// Prevent flood of error logs when we shutdown
 			if (stopped) {
-				done(null, content);
+				done(null, dummy);
 				return;
 			}
 
@@ -133,7 +137,17 @@ function createPreprocessor(
 			if (--count === 0) {
 				afterPreprocess(startTime);
 			}
-			done(null, content);
+
+			if (watchMode) {
+				// Never return an error in watch mode, otherwise the
+				// watcher will shutdown.
+				// Use a dummy file instead because the original content
+				// may content syntax not supported by a browser or the
+				// way the script was loaded. This breaks the watcher too.
+				done(null, dummy);
+			} else {
+				done(err, null);
+			}
 		}
 	};
 }
