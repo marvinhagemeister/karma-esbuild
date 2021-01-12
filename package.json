@@ -1,6 +1,6 @@
 {
 	"name": "karma-esbuild",
-	"version": "1.0.6",
+	"version": "1.0.7",
 	"description": "ESBuild preprocessor for karma test runner",
 	"main": "dist/index.js",
 	"repository": {
