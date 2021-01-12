@@ -44,13 +44,13 @@ function createPreprocessor(
 		const userConfig = { ...config.esbuild };
 
 		const result = await service!.build({
+			target: "es2015",
 			...userConfig,
 			bundle: true,
 			write: false,
 			entryPoints: files,
 			platform: "browser",
 			sourcemap: "inline",
-			target: "es2015",
 			define: {
 				"process.env.NODE_ENV": JSON.stringify(
 					process.env.NODE_ENV || "development",
