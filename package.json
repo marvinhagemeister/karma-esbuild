@@ -24,7 +24,8 @@
 		"dist/"
 	],
 	"dependencies": {
-		"chokidar": "^3.4.3"
+		"chokidar": "^3.4.3",
+		"karma-sourcemap-loader": "^0.3.8"
 	},
 	"peerDependencies": {
 		"esbuild": "0.8.x"
@@ -42,7 +43,7 @@
 		"kolorist": "^1.2.8",
 		"lint-staged": "^10.5.3",
 		"mocha": "^8.2.1",
-		"pentf": "^1.7.0",
+		"pentf": "^1.8.2",
 		"prettier": "^2.2.1",
 		"puppeteer": "^5.5.0",
 		"rimraf": "^3.0.2",

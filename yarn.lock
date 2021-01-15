@@ -267,6 +267,11 @@ asynckit@^0.4.0:
   resolved "https://registry.yarnpkg.com/asynckit/-/asynckit-0.4.0.tgz#c79ed97f7f34cb8f2ba1bc9790bcc366474b4b79"
   integrity sha1-x57Zf380y48robyXkLzDZkdLS3k=
 
+axe-core@^4.1.1:
+  version "4.1.1"
+  resolved "https://registry.yarnpkg.com/axe-core/-/axe-core-4.1.1.tgz#70a7855888e287f7add66002211a423937063eaf"
+  integrity sha512-5Kgy8Cz6LPC9DJcNb3yjAXTu3XihQgEdnIg50c//zOC/MyLP0Clg+Y8Sh9ZjjnvBrDZU4DgXS9C3T9r4/scGZQ==
+
 backo2@1.0.2:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/backo2/-/backo2-1.0.2.tgz#31ab1ac8b129363463e35b3ebb69f4dfcfba7947"
@@ -1359,6 +1364,13 @@ karma-mocha@^2.0.1:
   dependencies:
     minimist "^1.2.3"
 
+karma-sourcemap-loader@^0.3.8:
+  version "0.3.8"
+  resolved "https://registry.yarnpkg.com/karma-sourcemap-loader/-/karma-sourcemap-loader-0.3.8.tgz#d4bae72fb7a8397328a62b75013d2df937bdcf9c"
+  integrity sha512-zorxyAakYZuBcHRJE+vbrK2o2JXLFWK8VVjiT/6P+ltLBUGUvqTEkUiQ119MGdOrK7mrmxXHZF1/pfT6GgIZ6g==
+  dependencies:
+    graceful-fs "^4.1.2"
+
 karma@^5.2.3:
   version "5.2.3"
   resolved "https://registry.yarnpkg.com/karma/-/karma-5.2.3.tgz#3264024219bad2728e92542e0058a2492d7a46e4"
@@ -1837,15 +1849,16 @@ pend@~1.2.0:
   resolved "https://registry.yarnpkg.com/pend/-/pend-1.2.0.tgz#7a57eb550a6783f9115331fcf4663d5c8e007a50"
   integrity sha1-elfrVQpng/kRUzH89GY9XI4AelA=
 
-pentf@^1.7.0:
-  version "1.7.0"
-  resolved "https://registry.yarnpkg.com/pentf/-/pentf-1.7.0.tgz#8b592f6044b09bf0c047637257ec0e9c70dc1558"
-  integrity sha512-T0zmOSs2No+o8qMN40PrmIbeBIn0p5tuA4DTaUwHAE0Qe9cmGcjp1D5yViptsGUQ+LvOErJ0kU/H4QtZjB3maw==
+pentf@^1.8.2:
+  version "1.8.2"
+  resolved "https://registry.yarnpkg.com/pentf/-/pentf-1.8.2.tgz#e3e0b1d7c1953e09636805cf251bff20890365ad"
+  integrity sha512-gGRkLfCy4pPXOeYuIuls2HMajecaPiUfe20vCHjeTbjVuLkIxNHjqKBqh0LdwEGqenOT1DdFe+h76LWseuqe8Q==
   dependencies:
     "@sentry/node" "^5.15.5"
     "@types/glob" "^7.1.1"
     "@types/puppeteer" "^5.4.0"
     argparse "^1.0.10"
+    axe-core "^4.1.1"
     chokidar "^3.4.2"
     diff "^4.0.2"
     emailjs-imap-client "^3.0.7"

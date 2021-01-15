@@ -2,6 +2,9 @@ import chokidar, { FSWatcher } from "chokidar";
 import { debounce, formatTime } from "./utils";
 import * as karma from "karma";
 import * as esbuild from "esbuild";
+import * as path from "path";
+import { SourceMapPayload } from "module";
+import { IncomingMessage, ServerResponse } from "http";
 
 interface KarmaFile {
 	originalPath: string;
@@ -25,12 +28,28 @@ interface KarmaLogger {
 	};
 }
 
+export interface CacheItem {
+	file: string;
+	content: string;
+	mapFile: string;
+	mapContent: string;
+}
+
+const cache = new Map<string, CacheItem>();
+
 function createPreprocessor(
 	config: karma.ConfigOptions & { esbuild: esbuild.BuildOptions },
 	emitter: karma.Server,
 	logger: KarmaLogger,
 ): KarmaPreprocess {
 	const log = logger.create("esbuild");
+	const base = config.basePath || process.cwd();
+
+	// Inject sourcemap middleware
+	if (!config.middleware) {
+		config.middleware = [];
+	}
+	config.middleware.push("esbuild");
 
 	let service: esbuild.Service | null = null;
 
@@ -50,7 +69,8 @@ function createPreprocessor(
 			write: false,
 			entryPoints: files,
 			platform: "browser",
-			sourcemap: "inline",
+			sourcemap: "external",
+			outdir: base,
 			define: {
 				"process.env.NODE_ENV": JSON.stringify(
 					process.env.NODE_ENV || "development",
@@ -118,7 +138,23 @@ function createPreprocessor(
 
 		try {
 			const result = await build([file.originalPath]);
-			const code = result.outputFiles[0].text;
+			const map = result.outputFiles[0];
+			const mapText = JSON.parse(map.text) as SourceMapPayload;
+
+			// Sources paths must be absolute, otherwise vscode will be unable
+			// to find breakpoints
+			mapText.sources = mapText.sources.map(s => path.join(base, s));
+
+			const source = result.outputFiles[1];
+			const relative = path.relative(base, file.originalPath);
+			const code = source.text + `\n//# sourceMappingURL=/base/${relative}.map`;
+			cache.set(relative, {
+				file: source.path,
+				content: code,
+				mapFile: map.path,
+				mapContent: JSON.stringify(mapText, null, 2),
+			});
+
 			if (--count === 0) {
 				afterPreprocess(startTime);
 			}
@@ -153,6 +189,26 @@ function createPreprocessor(
 }
 createPreprocessor.$inject = ["config", "emitter", "logger"];
 
+function createSourceMapMiddleware() {
+	return function (
+		req: IncomingMessage,
+		res: ServerResponse,
+		next: () => void,
+	) {
+		const url = (req.url || "").replace(/^\/base\//, "");
+
+		const key = url.replace(/\.map$/, "");
+		const item = cache.get(key);
+		if (item) {
+			res.setHeader("Content-Type", "application/json");
+			res.end(item.mapContent);
+		} else {
+			next();
+		}
+	};
+}
+
 module.exports = {
 	"preprocessor:esbuild": ["factory", createPreprocessor],
+	"middleware:esbuild": ["factory", createSourceMapMiddleware],
 };
