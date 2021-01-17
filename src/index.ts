@@ -10,7 +10,8 @@ interface KarmaFile {
 	originalPath: string;
 	path: string;
 	contentPath: string;
-	sourceMap?: any; // TODO: Unsure if this exists
+	/** This is a must for mapped stack traces */
+	sourceMap?: SourceMapPayload;
 }
 
 type KarmaPreprocess = (
@@ -154,6 +155,9 @@ function createPreprocessor(
 				mapFile: map.path,
 				mapContent: JSON.stringify(mapText, null, 2),
 			});
+
+			// Necessary for mappings in stack traces
+			file.sourceMap = mapText;
 
 			if (--count === 0) {
 				afterPreprocess(startTime);
