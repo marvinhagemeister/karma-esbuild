@@ -1,4 +1,5 @@
 import { debounce, formatTime } from "./utils";
+import { newCache } from "./cache";
 import * as karma from "karma";
 import * as esbuild from "esbuild";
 import * as path from "path";
@@ -28,14 +29,7 @@ interface KarmaLogger {
 	};
 }
 
-export interface CacheItem {
-	file: string;
-	content: string;
-	mapFile: string;
-	mapContent: string;
-}
-
-const cache = new Map<string, CacheItem>();
+const cache = newCache();
 
 function createPreprocessor(
 	config: karma.ConfigOptions & { esbuild: esbuild.BuildOptions },
@@ -53,14 +47,58 @@ function createPreprocessor(
 
 	let service: esbuild.Service | null = null;
 
-	const logDone = (time: number) => {
-		log.info(`Compiling done (${formatTime(time)})`);
-	};
+	function processResult(
+		result: esbuild.BuildResult & {
+			outputFiles: esbuild.OutputFile[];
+		},
+		file: string,
+	) {
+		const map = result.outputFiles[0];
+		const mapText = JSON.parse(map.text) as SourceMapPayload;
 
-	async function build(files: string | string[]) {
-		files = !Array.isArray(files) ? [files] : files;
+		// Sources paths must be absolute, otherwise vscode will be unable
+		// to find breakpoints
+		mapText.sources = mapText.sources.map(s => path.join(base, s));
 
+		const source = result.outputFiles[1];
+		const relative = path.relative(base, file);
+
+		const code = source.text + `\n//# sourceMappingURL=/base/${relative}.map`;
+
+		cache.set(relative, {
+			file: source.path,
+			content: code,
+			mapFile: map.path,
+			mapText,
+			mapContent: JSON.stringify(mapText, null, 2),
+			time: Date.now(),
+		});
+		return cache.get(relative)!;
+	}
+
+	const watchMode = !config.singleRun && !!config.autoWatch;
+	const onWatchChange = debounce(async () => {
+		emitter.refreshFiles();
+	}, 100);
+
+	async function build(file: string) {
 		const userConfig = { ...config.esbuild };
+
+		const watch = watchMode
+			? {
+					onRebuild(
+						error: esbuild.BuildFailure | null,
+						result: esbuild.BuildResult | null,
+					) {
+						if (error) log.error(error.message);
+						if (result) {
+							processResult(result as any, file).then(() => {
+								onWatchChange();
+							});
+						}
+					},
+			  }
+			: false;
 
 		const result = await service!.build({
 			target: "es2015",
@@ -68,7 +106,7 @@ function createPreprocessor(
 			watch,
 			bundle: true,
 			write: false,
-			entryPoints: files,
+			entryPoints: [file],
 			platform: "browser",
 			sourcemap: "external",
 			outdir: base,
@@ -80,30 +118,17 @@ function createPreprocessor(
 			},
 		});
 
-		return result;
+		return processResult(result, file);
 	}
 
 	const entries = new Set<string>();
 
-	const watchMode = !config.singleRun && !!config.autoWatch;
-	const onWatchChange = debounce(async () => {
-		emitter.refreshFiles();
-	}, 100);
-	const watch = watchMode
-		? {
-				onRebuild(
-					error: esbuild.BuildFailure | null,
-					result: esbuild.BuildResult | null,
-				) {
-					error && log.error(error.message);
-					result && onWatchChange();
-				},
-		  }
-		: false;
-
-	const afterPreprocess = (time: number) => {
-		logDone(Date.now() - time);
-	};
+	const beforeProcess = debounce(() => {
+		log.info("Compiling...");
+	}, 10);
+	const afterPreprocess = debounce((time: number) => {
+		log.info(`Compiling done (${formatTime(Date.now() - time)})`);
+	}, 10);
 
 	let stopped = false;
 	let count = 0;
@@ -113,7 +138,7 @@ function createPreprocessor(
 		if (stopped) return;
 
 		if (count === 0) {
-			log.info("Compiling...");
+			beforeProcess();
 			startTime = Date.now();
 		}
 
@@ -129,32 +154,19 @@ function createPreprocessor(
 			});
 		}
 
+		const relative = path.relative(base, file.originalPath);
 		try {
-			const result = await build([file.originalPath]);
-			const map = result.outputFiles[0];
-			const mapText = JSON.parse(map.text) as SourceMapPayload;
-
-			// Sources paths must be absolute, otherwise vscode will be unable
-			// to find breakpoints
-			mapText.sources = mapText.sources.map(s => path.join(base, s));
-
-			const source = result.outputFiles[1];
-			const relative = path.relative(base, file.originalPath);
-			const code = source.text + `\n//# sourceMappingURL=/base/${relative}.map`;
-			cache.set(relative, {
-				file: source.path,
-				content: code,
-				mapFile: map.path,
-				mapContent: JSON.stringify(mapText, null, 2),
-			});
+			const result = cache.has(relative)
+				? await cache.get(relative)
+				: await build(file.originalPath);
 
 			// Necessary for mappings in stack traces
-			file.sourceMap = mapText;
+			file.sourceMap = result.mapText;
 
 			if (--count === 0) {
 				afterPreprocess(startTime);
 			}
-			done(null, code);
+			done(null, result.content);
 		} catch (err) {
 			// Use a non-empty string because `karma-sourcemap` crashes
 			// otherwse.
@@ -186,7 +198,7 @@ function createPreprocessor(
 createPreprocessor.$inject = ["config", "emitter", "logger"];
 
 function createSourceMapMiddleware() {
-	return function (
+	return async function (
 		req: IncomingMessage,
 		res: ServerResponse,
 		next: () => void,
@@ -194,7 +206,8 @@ function createSourceMapMiddleware() {
 		const url = (req.url || "").replace(/^\/base\//, "");
 
 		const key = url.replace(/\.map$/, "");
-		const item = cache.get(key);
+		// Always resolve from cache directly
+		const item = await cache.get(key);
 		if (item) {
 			res.setHeader("Content-Type", "application/json");
 			res.end(item.mapContent);
