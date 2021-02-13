@@ -1,5 +1,6 @@
 import { debounce, formatTime } from "./utils";
 import { newCache } from "./cache";
+import chokidar, { FSWatcher } from "chokidar";
 import * as karma from "karma";
 import * as esbuild from "esbuild";
 import * as path from "path";
@@ -76,34 +77,36 @@ function createPreprocessor(
 		return cache.get(relative)!;
 	}
 
+	let watcher: FSWatcher | null = null;
 	const watchMode = !config.singleRun && !!config.autoWatch;
-	const onWatchChange = debounce(async () => {
-		emitter.refreshFiles();
-	}, 100);
+	if (watchMode) {
+		// Initialize watcher to listen for changes in basePath so
+		// that we'll be notified of any new files
+		const basePath = config.basePath || process.cwd();
+		watcher = chokidar.watch([basePath], {
+			ignoreInitial: true,
+			// Ignore dot files and anything from node_modules
+			ignored: /((^|[/\\])\..|node_modules)/,
+		});
+		// Register shutdown handler
+		emitter.on("exit", done => {
+			watcher!.close();
+			done();
+		});
+
+		const onWatch = debounce(() => {
+			emitter.refreshFiles();
+		}, 100);
+		watcher.on("change", onWatch);
+		watcher.on("add", onWatch);
+	}
 
 	async function build(file: string) {
 		const userConfig = { ...config.esbuild };
 
-		const watch = watchMode
-			? {
-					onRebuild(
-						error: esbuild.BuildFailure | null,
-						result: esbuild.BuildResult | null,
-					) {
-						if (error) log.error(error.message);
-						if (result) {
-							processResult(result as any, file).then(() => {
-								onWatchChange();
-							});
-						}
-					},
-			  }
-			: false;
-
 		const result = await service!.build({
 			target: "es2015",
 			...userConfig,
-			watch,
 			bundle: true,
 			write: false,
 			entryPoints: [file],
