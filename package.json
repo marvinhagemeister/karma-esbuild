@@ -27,7 +27,7 @@
 		"karma-sourcemap-loader": "^0.3.8"
 	},
 	"peerDependencies": {
-		"esbuild": "^0.8.38"
+		"esbuild": ">=0.8.45"
 	},
 	"devDependencies": {
 		"@types/karma": "^5.0.1",
