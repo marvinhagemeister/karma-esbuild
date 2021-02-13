@@ -95,6 +95,7 @@ function createPreprocessor(
 		});
 
 		const onWatch = debounce(() => {
+			cache.clear();
 			emitter.refreshFiles();
 		}, 100);
 		watcher.on("change", onWatch);
