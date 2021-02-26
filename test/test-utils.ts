@@ -30,11 +30,15 @@ export async function runKarma(
 	);
 
 	if (!options.inherit) {
-		child.stderr!.on("data", s => {
-			output.stderr.push(stripColors(s.toString()));
-		});
-		child.stdout!.on("data", s => {
-			output.stdout.push(stripColors(s.toString()));
+		await new Promise((resolve, reject) => {
+			child.stderr!.on("data", s => {
+				output.stderr.push(stripColors(s.toString()));
+				reject();
+			});
+			child.stdout!.on("data", s => {
+				output.stdout.push(stripColors(s.toString()));
+				resolve(null);
+			});
 		});
 
 		onTeardown(config, () => {
