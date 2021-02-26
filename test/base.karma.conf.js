@@ -34,7 +34,7 @@ module.exports = {
 		exclude: [],
 
 		preprocessors: {
-			"files/**/*.js": ["esbuild"],
+			"files/**/*.{js,ts}": ["esbuild"],
 		},
 	},
 };
