@@ -170,6 +170,12 @@ function createPreprocessor(
 			if (--count === 0) {
 				afterPreprocess(startTime);
 			}
+			
+			// make sure the file has the `.js` extension
+			if (path.extname(file.path) !== ".js") {
+				file.path = `${file.path.substr(0, file.path .lastIndexOf(".")) || file.path}.js`;
+			}
+			
 			done(null, result.content);
 		} catch (err) {
 			// Use a non-empty string because `karma-sourcemap` crashes
