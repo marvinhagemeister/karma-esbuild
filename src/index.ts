@@ -210,9 +210,8 @@ function createSourceMapMiddleware() {
 		const url = (req.url || "").replace(/^\/base\//, "");
 
 		const key = url.replace(/\.map$/, "");
-		// Always resolve from cache directly
-		const item = await cache.get(key);
-		if (item) {
+		if (cache.has(key)) {
+			const item = await cache.get(key);
 			res.setHeader("Content-Type", "application/json");
 			res.end(item.mapContent);
 		} else {
