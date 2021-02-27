@@ -9,7 +9,7 @@ import * as fs from "fs";
 import { IncomingMessage, ServerResponse } from "http";
 import minimatch from "minimatch";
 import globby from "globby";
-import tempy from "tempy";
+import tempy, { file } from "tempy";
 import { SourceMapPayload } from "module";
 
 interface KarmaFile {
@@ -58,10 +58,13 @@ function createPreprocessor(
 		config.middleware = [];
 	}
 	config.middleware.push("esbuild");
+	console.log(config);
 
 	// Mapping of merged entry path to entry content
 	const entries = new Map<string, string>();
 
+	const preprocessors = config.preprocessors || (config.preprocessors = {});
+	let fileCount = 0;
 	config.files = (config.files || []).map(item => {
 		const entry = typeof item === "string" ? { pattern: item } : item;
 
@@ -71,26 +74,30 @@ function createPreprocessor(
 		// with a single file wich imports everything that is
 		// matched by the pattern.
 		if (/[tj]sx?$/.test(entry.pattern)) {
+			const tmp = tempy.file({
+				name: `karma-esbuild-entry-${fileCount}.js`,
+			});
+
 			const content = globby
 				.sync(entry.pattern)
 				.map(file => {
-					const rel = path.relative(base, file);
+					const rel = path.relative(path.dirname(tmp), file);
 					const normalized = rel.split(path.sep).join(path.posix.sep);
-					return `import "./${normalized}";`;
+					return `import "${normalized}";`;
 				})
 				.join("\n");
 
-			const tmp = tempy.file({ extension: ".js" });
-			fs.writeFileSync(tmp, `(function() {})()`, "utf-8");
+			fs.writeFileSync(tmp, content, "utf-8");
 			entries.set(tmp, content);
 
 			entry.pattern = tmp;
+
+			// Ensure that our file matches our preprocessor
+			preprocessors[tmp] = ["esbuild"];
 		}
 
 		return entry;
 	});
-
-	console.log(config.files);
 
 	let service: esbuild.Service | null = null;
 
@@ -152,15 +159,14 @@ function createPreprocessor(
 
 		const relative = path.relative(base, file.originalPath);
 
-		const cacheKey = relative;
-		console.log(cacheKey);
+		const cacheKey = file.originalPath;
 		try {
 			let result = null;
 			if (cache.has(cacheKey)) {
 				result = await cache.get(cacheKey);
 			} else {
 				console.log("cacheKey", cacheKey);
-				result = await compile(service!, relative, config.esbuild, base);
+				result = await compile(service!, relative, config.esbuild || {}, base);
 			}
 
 			// Necessary for mappings in stack traces
@@ -170,7 +176,6 @@ function createPreprocessor(
 				afterPreprocess(startTime);
 			}
 
-			// Make sure the file has the `.js` extension. This is necessary
 			// for TypeScript support.
 			if (path.extname(file.path) !== ".js") {
 				file.path = `${

@@ -1,7 +1,7 @@
 import { foo } from "./dep1";
 
-describe("simple", () => {
-	it("should work", () => {
+describe("A", () => {
+	it("should work A", () => {
 		if (foo() !== 42) {
 			throw new Error("fail");
 		}
