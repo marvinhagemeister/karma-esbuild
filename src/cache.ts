@@ -1,25 +1,12 @@
-import { SourceMapPayload } from "module";
-
-export interface CacheItem {
-	file: string;
-	content: string;
-	mapFile: string;
-	mapText: SourceMapPayload;
-	mapContent: string;
-	time: number;
-}
-
-export type CacheCb = (item: CacheItem) => void;
-
-export function newCache() {
-	const cache = new Map<string, CacheItem>();
+export function newCache<T extends { time: number }>() {
+	const cache = new Map<string, T>();
 	const pending = new Map<
 		string,
-		{ reject: (err?: Error) => void; resolve: CacheCb }[]
+		{ reject: (err?: Error) => void; resolve: (item: T) => void }[]
 	>();
 	const lastUsed = new Map<string, number>();
 
-	async function set(key: string, item: CacheItem) {
+	async function set(key: string, item: T) {
 		cache.set(key, item);
 
 		const waitingFns = pending.get(key);
@@ -31,7 +18,7 @@ export function newCache() {
 		}
 	}
 
-	async function get(key: string): Promise<CacheItem> {
+	async function get(key: string): Promise<T> {
 		let result = cache.get(key);
 		const last = lastUsed.get(key) || 0;
 		if (result && result.time >= last) {

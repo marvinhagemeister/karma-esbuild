@@ -1,11 +1,16 @@
 import { debounce, formatTime } from "./utils";
 import { newCache } from "./cache";
+import { compile } from "./compile";
 import chokidar, { FSWatcher } from "chokidar";
 import * as karma from "karma";
 import * as esbuild from "esbuild";
 import * as path from "path";
-import { SourceMapPayload } from "module";
+import * as fs from "fs";
 import { IncomingMessage, ServerResponse } from "http";
+import minimatch from "minimatch";
+import globby from "globby";
+import tempy from "tempy";
+import { SourceMapPayload } from "module";
 
 interface KarmaFile {
 	originalPath: string;
@@ -30,7 +35,15 @@ interface KarmaLogger {
 	};
 }
 
-const cache = newCache();
+export interface CacheItem {
+	file: string;
+	content: string;
+	sourceMapPath: string;
+	sourceMapContent: string;
+	time: number;
+}
+
+const cache = newCache<CacheItem>();
 
 function createPreprocessor(
 	config: karma.ConfigOptions & { esbuild: esbuild.BuildOptions },
@@ -46,36 +59,40 @@ function createPreprocessor(
 	}
 	config.middleware.push("esbuild");
 
+	// Mapping of merged entry path to entry content
+	const entries = new Map<string, string>();
+
+	config.files = (config.files || []).map(item => {
+		const entry = typeof item === "string" ? { pattern: item } : item;
+
+		// We'll create a single bundle for each specified file
+		// pattern, otherwise karma feeds us the test files
+		// one by one. To avoid that we replace the pattern
+		// with a single file wich imports everything that is
+		// matched by the pattern.
+		if (/[tj]sx?$/.test(entry.pattern)) {
+			const content = globby
+				.sync(entry.pattern)
+				.map(file => {
+					const rel = path.relative(base, file);
+					const normalized = rel.split(path.sep).join(path.posix.sep);
+					return `import "./${normalized}";`;
+				})
+				.join("\n");
+
+			const tmp = tempy.file({ extension: ".js" });
+			fs.writeFileSync(tmp, `(function() {})()`, "utf-8");
+			entries.set(tmp, content);
+
+			entry.pattern = tmp;
+		}
+
+		return entry;
+	});
+
+	console.log(config.files);
+
 	let service: esbuild.Service | null = null;
-
-	function processResult(
-		result: esbuild.BuildResult & {
-			outputFiles: esbuild.OutputFile[];
-		},
-		file: string,
-	) {
-		const map = result.outputFiles[0];
-		const mapText = JSON.parse(map.text) as SourceMapPayload;
-
-		// Sources paths must be absolute, otherwise vscode will be unable
-		// to find breakpoints
-		mapText.sources = mapText.sources.map(s => path.join(base, s));
-
-		const source = result.outputFiles[1];
-		const relative = path.relative(base, file);
-
-		const code = source.text + `\n//# sourceMappingURL=/base/${relative}.map`;
-
-		cache.set(relative, {
-			file: source.path,
-			content: code,
-			mapFile: map.path,
-			mapText,
-			mapContent: JSON.stringify(mapText, null, 2),
-			time: Date.now(),
-		});
-		return cache.get(relative)!;
-	}
 
 	let watcher: FSWatcher | null = null;
 	const watchMode = !config.singleRun && !!config.autoWatch;
@@ -102,31 +119,6 @@ function createPreprocessor(
 		watcher.on("add", onWatch);
 	}
 
-	async function build(file: string) {
-		const userConfig = { ...config.esbuild };
-
-		const result = await service!.build({
-			target: "es2015",
-			...userConfig,
-			bundle: true,
-			write: false,
-			entryPoints: [file],
-			platform: "browser",
-			sourcemap: "external",
-			outdir: base,
-			define: {
-				"process.env.NODE_ENV": JSON.stringify(
-					process.env.NODE_ENV || "development",
-				),
-				...userConfig.define,
-			},
-		});
-
-		return processResult(result, file);
-	}
-
-	const entries = new Set<string>();
-
 	const beforeProcess = debounce(() => {
 		log.info("Compiling...");
 	}, 10);
@@ -139,6 +131,7 @@ function createPreprocessor(
 	let startTime = 0;
 	return async function preprocess(content, file, done) {
 		// Prevent service closed message when we are still processing
+		console.log("PROCESS", file);
 		if (stopped) return;
 
 		if (count === 0) {
@@ -148,7 +141,6 @@ function createPreprocessor(
 
 		count++;
 
-		entries.add(file.originalPath);
 		if (service === null) {
 			service = await esbuild.startService();
 			emitter.on("exit", done => {
@@ -159,13 +151,20 @@ function createPreprocessor(
 		}
 
 		const relative = path.relative(base, file.originalPath);
+
+		const cacheKey = relative;
+		console.log(cacheKey);
 		try {
-			const result = cache.has(relative)
-				? await cache.get(relative)
-				: await build(file.originalPath);
+			let result = null;
+			if (cache.has(cacheKey)) {
+				result = await cache.get(cacheKey);
+			} else {
+				console.log("cacheKey", cacheKey);
+				result = await compile(service!, relative, config.esbuild, base);
+			}
 
 			// Necessary for mappings in stack traces
-			file.sourceMap = result.mapText;
+			file.sourceMap = JSON.parse(result.sourceMapContent);
 
 			if (--count === 0) {
 				afterPreprocess(startTime);
@@ -222,7 +221,7 @@ function createSourceMapMiddleware() {
 		if (cache.has(key)) {
 			const item = await cache.get(key);
 			res.setHeader("Content-Type", "application/json");
-			res.end(item.mapContent);
+			res.end(item.sourceMapContent);
 		} else {
 			next();
 		}
