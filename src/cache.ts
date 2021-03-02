@@ -17,30 +17,25 @@ export function newCache() {
 		string,
 		{ reject: (err?: Error) => void; resolve: CacheCb }[]
 	>();
-	const lastUsed = new Map<string, number>();
 
-	async function set(key: string, item: CacheItem) {
+	function set(key: string, item: CacheItem) {
 		cache.set(key, item);
 
 		const waitingFns = pending.get(key);
-		pending.set(key, []);
-		lastUsed.set(key, item.time);
-
 		if (waitingFns) {
-			await Promise.all(waitingFns.map(fn => fn.resolve(item)));
+			waitingFns.forEach(fn => fn.resolve(item));
+			pending.delete(key);
 		}
 	}
 
 	async function get(key: string): Promise<CacheItem> {
-		let result = cache.get(key);
-		const last = lastUsed.get(key) || 0;
-		if (result && result.time >= last) {
-			lastUsed.set(key, result.time);
+		const result = cache.get(key);
+		if (result) {
 			return result;
 		}
 
 		return new Promise((resolve, reject) => {
-			let fns = pending.get(key) || [];
+			const fns = pending.get(key) || [];
 			fns.push({ resolve, reject });
 			pending.set(key, fns);
 		});
@@ -52,8 +47,7 @@ export function newCache() {
 
 	function clear() {
 		cache.clear();
-		lastUsed.clear();
-		Array.from(pending.values()).forEach(item => {
+		pending.forEach(item => {
 			item.forEach(p => p.reject());
 		});
 		pending.clear();
