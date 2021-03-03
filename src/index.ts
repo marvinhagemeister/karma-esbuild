@@ -1,9 +1,10 @@
 import { debounce, formatTime } from "./utils";
 import { newCache } from "./cache";
+import { Bundle } from "./bundle";
 import chokidar, { FSWatcher } from "chokidar";
 import * as karma from "karma";
 import * as esbuild from "esbuild";
-import path from "path";
+import * as path from "path";
 import { SourceMapPayload } from "module";
 import { IncomingMessage, ServerResponse } from "http";
 
@@ -19,7 +20,7 @@ type KarmaPreprocess = (
 	content: any,
 	file: KarmaFile,
 	done: (err: Error | null, content?: string | null) => void,
-) => Promise<void>;
+) => void;
 
 interface KarmaLogger {
 	create(
@@ -31,20 +32,34 @@ interface KarmaLogger {
 }
 
 const cache = newCache();
+const bundle = new Bundle();
 
 function createPreprocessor(
-	config: karma.ConfigOptions & { esbuild: esbuild.BuildOptions },
+	config: karma.ConfigOptions & {
+		esbuild?: esbuild.BuildOptions & { bundleDelay?: number };
+	},
 	emitter: karma.Server,
 	logger: KarmaLogger,
 ): KarmaPreprocess {
 	const log = logger.create("esbuild");
 	const base = config.basePath || process.cwd();
+	// Create an empty file.
+	bundle.write("");
 
 	// Inject sourcemap middleware
 	if (!config.middleware) {
 		config.middleware = [];
 	}
 	config.middleware.push("esbuild");
+	if (!config.files) {
+		config.files = [];
+	}
+	config.files.push({
+		pattern: bundle.file,
+		included: true,
+		served: true,
+		watched: false,
+	});
 
 	let service: esbuild.Service | null = null;
 
@@ -55,27 +70,26 @@ function createPreprocessor(
 		file: string,
 	) {
 		const map = result.outputFiles[0];
-		const mapText = JSON.parse(map.text) as SourceMapPayload;
+		const source = result.outputFiles[1];
 
 		// Sources paths must be absolute, otherwise vscode will be unable
 		// to find breakpoints
+		const mapText = JSON.parse(map.text) as SourceMapPayload;
 		mapText.sources = mapText.sources.map(s => path.join(base, s));
 
-		const source = result.outputFiles[1];
-		const relative = path.relative(base, file);
-		const filename = path.basename(file);
+		const code =
+			source.text + `\n//# sourceMappingURL=${path.basename(file)}.map`;
 
-		const code = source.text + `\n//# sourceMappingURL=${filename}.map`;
-
-		cache.set(relative, {
+		const item = {
 			file: source.path,
 			content: code,
 			mapFile: map.path,
 			mapText,
 			mapContent: JSON.stringify(mapText, null, 2),
 			time: Date.now(),
-		});
-		return cache.get(relative)!;
+		};
+		cache.set(file, item);
+		return item;
 	}
 
 	let watcher: FSWatcher | null = null;
@@ -103,7 +117,12 @@ function createPreprocessor(
 		watcher.on("add", onWatch);
 	}
 
-	async function build(file: string) {
+	function makeUrl(path: string) {
+		const url = `${config.protocol}//${config.hostname}:${config.port}`;
+		return url + path;
+	}
+
+	async function build(contents: string, file: string) {
 		const userConfig = { ...config.esbuild };
 
 		const result = await service!.build({
@@ -111,7 +130,11 @@ function createPreprocessor(
 			...userConfig,
 			bundle: true,
 			write: false,
-			entryPoints: [file],
+			stdin: {
+				contents,
+				resolveDir: path.dirname(file),
+				sourcefile: path.basename(file),
+			},
 			platform: "browser",
 			sourcemap: "external",
 			outdir: base,
@@ -126,30 +149,23 @@ function createPreprocessor(
 		return processResult(result, file);
 	}
 
-	const entries = new Set<string>();
-
 	const beforeProcess = debounce(() => {
 		log.info("Compiling...");
 	}, 10);
 	const afterPreprocess = debounce((time: number) => {
-		log.info(`Compiling done (${formatTime(Date.now() - time)})`);
+		log.info(
+			`Compiling done (${formatTime(Date.now() - time)}, with ${formatTime(
+				bundleDelay,
+			)} delay)`,
+		);
 	}, 10);
 
 	let stopped = false;
 	let count = 0;
 	let startTime = 0;
-	return async function preprocess(content, file, done) {
-		// Prevent service closed message when we are still processing
-		if (stopped) return;
+	const bundleDelay = config.esbuild?.bundleDelay ?? 200;
 
-		if (count === 0) {
-			beforeProcess();
-			startTime = Date.now();
-		}
-
-		count++;
-
-		entries.add(file.originalPath);
+	const writeBundle = debounce(async () => {
 		if (service === null) {
 			service = await esbuild.startService();
 			emitter.on("exit", done => {
@@ -159,67 +175,60 @@ function createPreprocessor(
 			});
 		}
 
-		const relative = path.relative(base, file.originalPath);
 		try {
-			const result = cache.has(relative)
-				? await cache.get(relative)
-				: await build(file.originalPath);
+			const result = await build(bundle.generate(), bundle.file);
 
-			// Necessary for mappings in stack traces
-			file.sourceMap = result.mapText;
-
-			if (--count === 0) {
-				afterPreprocess(startTime);
-			}
-
-			// Make sure the file has the `.js` extension. This is necessary
-			// for TypeScript support.
-			if (path.extname(file.path) !== ".js") {
-				file.path = `${
-					file.path.substr(0, file.path.lastIndexOf(".")) || file.path
-				}.js`;
-			}
-
-			done(null, result.content);
+			count = 0;
+			afterPreprocess(startTime);
+			bundle.write(result.content);
 		} catch (err) {
+			log.error(err.message);
+
 			// Use a non-empty string because `karma-sourcemap` crashes
 			// otherwse.
 			const dummy = `(function () {})()`;
-			// Prevent flood of error logs when we shutdown
-			if (stopped) {
-				done(null, dummy);
-				return;
-			}
 
-			log.error(err.message);
-			if (--count === 0) {
-				afterPreprocess(startTime);
-			}
-
-			if (watchMode) {
-				// Never return an error in watch mode, otherwise the
-				// watcher will shutdown.
-				// Use a dummy file instead because the original content
-				// may content syntax not supported by a browser or the
-				// way the script was loaded. This breaks the watcher too.
-				done(null, dummy);
-			} else {
-				done(err, null);
-			}
+			count = 0;
+			afterPreprocess(startTime);
+			bundle.write(dummy);
 		}
+	}, bundleDelay);
+
+	return function preprocess(content, file, done) {
+		// Prevent service closed message when we are still processing
+		if (stopped) return;
+
+		if (count === 0) {
+			beforeProcess();
+			startTime = Date.now();
+		}
+		count++;
+
+		bundle.addFile(file.originalPath);
+		writeBundle();
+
+		const dummy = [
+			`/**`,
+			` * ${file.originalPath}`,
+			` * See ${makeUrl(`/absolute${bundle.file}`)}`,
+			` */`,
+			`(function () {})()`,
+		];
+		done(null, dummy.join("\n"));
 	};
 }
 createPreprocessor.$inject = ["config", "emitter", "logger"];
 
-function createSourceMapMiddleware() {
+function createMiddleware() {
 	return async function (
 		req: IncomingMessage,
 		res: ServerResponse,
 		next: () => void,
 	) {
-		const url = (req.url || "").replace(/^\/base\//, "");
-
-		const key = url.replace(/\.map$/, "").replace(/\//g, path.sep);
+		const key = (req.url || "")
+			.replace(/^\/absolute/, "")
+			.replace(/\.map$/, "")
+			.replace(/\//g, path.sep);
 		if (cache.has(key)) {
 			const item = await cache.get(key);
 			res.setHeader("Content-Type", "application/json");
@@ -232,5 +241,5 @@ function createSourceMapMiddleware() {
 
 module.exports = {
 	"preprocessor:esbuild": ["factory", createPreprocessor],
-	"middleware:esbuild": ["factory", createSourceMapMiddleware],
+	"middleware:esbuild": ["factory", createMiddleware],
 };

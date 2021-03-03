@@ -1,10 +1,40 @@
-export function debounce(fn: (...args: any[]) => any, ms: number) {
-	let timeout: NodeJS.Timeout;
-	return (...args: any[]): Promise<ReturnType<typeof fn>> => {
-		return new Promise(resolve => {
-			clearTimeout(timeout);
-			timeout = setTimeout(() => resolve(fn.call(null, args)), ms);
+class Deferred<T> {
+	declare promise: Promise<T>;
+	declare resolve: (value: T | PromiseLike<T>) => void;
+	declare reject: (reason: Error) => void;
+
+	constructor() {
+		this.promise = new Promise((resolve, reject) => {
+			this.resolve = resolve;
+			this.reject = reject;
 		});
+	}
+}
+
+export function debounce<A extends any[], R>(
+	fn: (...args: A) => R,
+	ms: number,
+) {
+	let timeout: NodeJS.Timeout;
+	let _args: A | undefined;
+	let _deferred: Deferred<R> | undefined;
+	function process() {
+		const args = _args!;
+		const deferred = _deferred!;
+		_args = undefined;
+		_deferred = undefined;
+		try {
+			deferred.resolve(fn(...args));
+		} catch (e) {
+			deferred.reject(e);
+		}
+	}
+	return (...args: A): Promise<R> => {
+		_args = args;
+		if (!_deferred) _deferred = new Deferred();
+		clearTimeout(timeout);
+		timeout = setTimeout(process, ms);
+		return _deferred.promise;
 	};
 }
 
