@@ -42,8 +42,9 @@ export async function runKarma(
 			child.kill();
 		});
 
-		await assertEventually(
-			() => output.stdout.find(line => /server started/.test(line)),
+		await assertEventuallyProgresses(
+			output.stdout,
+			() => output.stdout.some(line => /server started/.test(line)),
 			{
 				message: "Could not find karma server started message",
 			},
@@ -57,4 +58,22 @@ export async function runKarma(
 			output.stderr = [];
 		},
 	};
+}
+
+export async function assertEventuallyProgresses(
+	stdout: string[],
+	cb: () => boolean,
+	options?: Parameters<typeof assertEventually>[1],
+) {
+	while (true) {
+		const { length } = stdout;
+		try {
+			return await assertEventually(cb, options);
+		} catch (e) {
+			if (stdout.length === length) {
+				// We didn't make any progress.
+				throw e;
+			}
+		}
+	}
 }
