@@ -10,23 +10,20 @@ export async function runKarma(
 	options: { inherit?: boolean } = {},
 ) {
 	const app = path.join("node_modules", ".bin", "karma");
-
 	const fixturePath = path.join(__dirname, "fixtures", fixture);
-
-	let output = {
+	const karmaConfig = path.join(fixturePath, "karma.conf.js");
+	const output = {
 		stdout: [] as string[],
 		stderr: [] as string[],
 	};
 
-	const karmaConfig = path.join(fixturePath, "karma.conf.js");
 	const child = child_process.spawn(
 		app,
 		["start", "--no-single-run", karmaConfig],
-		options.inherit
-			? {
-					stdio: "inherit",
-			  }
-			: {},
+		{
+			stdio: options.inherit ? "inherit" : undefined,
+			shell: true,
+		},
 	);
 
 	if (!options.inherit) {
