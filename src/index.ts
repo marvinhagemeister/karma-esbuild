@@ -4,7 +4,6 @@ import chokidar, { FSWatcher } from "chokidar";
 import * as karma from "karma";
 import * as esbuild from "esbuild";
 import * as path from "path";
-import * as fs from "fs";
 import { SourceMapPayload } from "module";
 import { IncomingMessage, ServerResponse } from "http";
 
