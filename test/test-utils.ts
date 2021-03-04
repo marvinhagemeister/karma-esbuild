@@ -9,7 +9,7 @@ export async function runKarma(
 	fixture: string,
 	options: { inherit?: boolean } = {},
 ) {
-	const app = path.join(__dirname, "..", "node_modules", ".bin", "karma");
+	const app = path.join("node_modules", ".bin", "karma");
 
 	const fixturePath = path.join(__dirname, "fixtures", fixture);
 
