@@ -10,7 +10,7 @@ function random(length: number) {
 export class Bundle {
 	dir = os.tmpdir();
 	file = path.join(this.dir, `${random(16)}-bundle.js`);
-	files = new Set<string>();
+	private files = new Set<string>();
 
 	addFile(file: string) {
 		this.files.add(file);
@@ -23,7 +23,7 @@ export class Bundle {
 		return files.join("\n");
 	}
 
-	write(contents: string) {
-		fs.writeFileSync(this.file, contents);
+	touch() {
+		fs.writeFileSync(this.file, "");
 	}
 }

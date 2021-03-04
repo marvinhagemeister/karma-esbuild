@@ -5,6 +5,7 @@ import chokidar, { FSWatcher } from "chokidar";
 import * as karma from "karma";
 import * as esbuild from "esbuild";
 import * as path from "path";
+import * as fs from "fs";
 import { SourceMapPayload } from "module";
 import { IncomingMessage, ServerResponse } from "http";
 
@@ -44,7 +45,7 @@ function createPreprocessor(
 	const log = logger.create("esbuild");
 	const base = config.basePath || process.cwd();
 	// Create an empty file.
-	bundle.write("");
+	bundle.touch();
 
 	// Inject sourcemap middleware
 	if (!config.middleware) {
@@ -57,7 +58,7 @@ function createPreprocessor(
 	config.files.push({
 		pattern: bundle.file,
 		included: true,
-		served: true,
+		served: false,
 		watched: false,
 	});
 
@@ -125,6 +126,18 @@ function createPreprocessor(
 	async function build(contents: string, file: string) {
 		const userConfig = { ...config.esbuild };
 
+		let envPlugin = {
+			name: "env",
+			setup(build: esbuild.PluginBuild) {
+				// Load paths tagged with the "env-ns" namespace and behave as if
+				// they point to a JSON file containing the environment variables.
+				build.onLoad({ filter: /.*/ }, file => {
+					console.log(fs.readFileSync(file.path, "utf-8"));
+					return null;
+				});
+			},
+		};
+
 		const result = await service!.build({
 			target: "es2015",
 			...userConfig,
@@ -138,6 +151,7 @@ function createPreprocessor(
 			platform: "browser",
 			sourcemap: "external",
 			outdir: base,
+			plugins: [envPlugin],
 			define: {
 				"process.env.NODE_ENV": JSON.stringify(
 					process.env.NODE_ENV || "development",
@@ -180,7 +194,7 @@ function createPreprocessor(
 
 			count = 0;
 			afterPreprocess(startTime);
-			bundle.write(result.content);
+			bundle.touch();
 		} catch (err) {
 			log.error(err.message);
 
@@ -190,11 +204,11 @@ function createPreprocessor(
 
 			count = 0;
 			afterPreprocess(startTime);
-			bundle.write(dummy);
+			bundle.touch();
 		}
 	}, bundleDelay);
 
-	return function preprocess(content, file, done) {
+	return async function preprocess(content, file, done) {
 		// Prevent service closed message when we are still processing
 		if (stopped) return;
 
@@ -205,7 +219,7 @@ function createPreprocessor(
 		count++;
 
 		bundle.addFile(file.originalPath);
-		writeBundle();
+		await writeBundle();
 
 		const dummy = [
 			`/**`,
@@ -225,16 +239,20 @@ function createMiddleware() {
 		res: ServerResponse,
 		next: () => void,
 	) {
-		const key = (req.url || "")
-			.replace(/^\/absolute/, "")
-			.replace(/\.map$/, "")
-			.replace(/\//g, path.sep);
-		if (cache.has(key)) {
-			const item = await cache.get(key);
+		const match = /^\/absolute([^?#]*?)(\.map)?(\?|#|$)/.exec(req.url || "");
+		if (!match) return next();
+
+		const key = match[1];
+		const isMap = match[2] === ".map";
+		if (!cache.has(key)) return next();
+
+		const item = await cache.get(key);
+		if (isMap) {
 			res.setHeader("Content-Type", "application/json");
 			res.end(item.mapContent);
 		} else {
-			next();
+			res.setHeader("Content-Type", "text/javascript");
+			res.end(item.content);
 		}
 	};
 }
