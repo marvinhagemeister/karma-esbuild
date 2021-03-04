@@ -3,7 +3,7 @@ import { newCache } from "./cache";
 import chokidar, { FSWatcher } from "chokidar";
 import * as karma from "karma";
 import * as esbuild from "esbuild";
-import * as path from "path";
+import { posix as path } from "path";
 import { SourceMapPayload } from "module";
 import { IncomingMessage, ServerResponse } from "http";
 
