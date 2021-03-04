@@ -65,6 +65,7 @@ export async function assertEventuallyProgresses(
 	cb: () => boolean,
 	options?: Parameters<typeof assertEventually>[1],
 ) {
+	options = { ...options, timeout: 20_000 };
 	while (true) {
 		const { length } = stdout;
 		try {
