@@ -1,5 +1,4 @@
 import { debounce, formatTime } from "./utils";
-import { newCache } from "./cache";
 import { Bundle } from "./bundle";
 import chokidar, { FSWatcher } from "chokidar";
 import * as karma from "karma";
@@ -32,7 +31,6 @@ interface KarmaLogger {
 	};
 }
 
-const cache = newCache();
 const bundle = new Bundle();
 
 function createPreprocessor(
@@ -44,14 +42,16 @@ function createPreprocessor(
 ): KarmaPreprocess {
 	const log = logger.create("esbuild");
 	const base = config.basePath || process.cwd();
-	// Create an empty file.
-	bundle.touch();
 
-	// Inject sourcemap middleware
+	// Inject middleware to handle the bundled file and map.
 	if (!config.middleware) {
 		config.middleware = [];
 	}
 	config.middleware.push("esbuild");
+
+	// Create an empty file for Karma to track. Karma requires a real file in
+	// order for it to be injected into the page, even though the middleware
+	// will be responsible for serving it.
 	if (!config.files) {
 		config.files = [];
 	}
@@ -61,6 +61,7 @@ function createPreprocessor(
 		served: false,
 		watched: false,
 	});
+	bundle.touch();
 
 	let service: esbuild.Service | null = null;
 
@@ -81,16 +82,10 @@ function createPreprocessor(
 		const code =
 			source.text + `\n//# sourceMappingURL=${path.basename(file)}.map`;
 
-		const item = {
-			file: source.path,
-			content: code,
-			mapFile: map.path,
-			mapText,
-			mapContent: JSON.stringify(mapText, null, 2),
-			time: Date.now(),
+		return {
+			code,
+			map: JSON.stringify(mapText, null, 2),
 		};
-		cache.set(file, item);
-		return item;
 	}
 
 	let watcher: FSWatcher | null = null;
@@ -111,7 +106,6 @@ function createPreprocessor(
 		});
 
 		const onWatch = debounce(() => {
-			cache.clear();
 			emitter.refreshFiles();
 		}, 100);
 		watcher.on("change", onWatch);
@@ -126,18 +120,6 @@ function createPreprocessor(
 	async function build(contents: string, file: string) {
 		const userConfig = { ...config.esbuild };
 
-		let envPlugin = {
-			name: "env",
-			setup(build: esbuild.PluginBuild) {
-				// Load paths tagged with the "env-ns" namespace and behave as if
-				// they point to a JSON file containing the environment variables.
-				build.onLoad({ filter: /.*/ }, file => {
-					console.log(fs.readFileSync(file.path, "utf-8"));
-					return null;
-				});
-			},
-		};
-
 		const result = await service!.build({
 			target: "es2015",
 			...userConfig,
@@ -151,7 +133,6 @@ function createPreprocessor(
 			platform: "browser",
 			sourcemap: "external",
 			outdir: base,
-			plugins: [envPlugin],
 			define: {
 				"process.env.NODE_ENV": JSON.stringify(
 					process.env.NODE_ENV || "development",
@@ -191,20 +172,20 @@ function createPreprocessor(
 
 		try {
 			const result = await build(bundle.generate(), bundle.file);
+			bundle.write(result);
 
 			count = 0;
 			afterPreprocess(startTime);
-			bundle.touch();
 		} catch (err) {
 			log.error(err.message);
 
-			// Use a non-empty string because `karma-sourcemap` crashes
-			// otherwse.
-			const dummy = `(function () {})()`;
+			bundle.write({
+				code: (err.stack || "").replace(/^/g, "// "),
+				map: "",
+			});
 
 			count = 0;
 			afterPreprocess(startTime);
-			bundle.touch();
 		}
 	}, bundleDelay);
 
@@ -244,15 +225,15 @@ function createMiddleware() {
 
 		const key = match[1];
 		const isMap = match[2] === ".map";
-		if (!cache.has(key)) return next();
+		if (key !== bundle.file) return next();
 
-		const item = await cache.get(key);
+		const item = bundle.read();
 		if (isMap) {
 			res.setHeader("Content-Type", "application/json");
-			res.end(item.mapContent);
+			res.end(item.map);
 		} else {
 			res.setHeader("Content-Type", "text/javascript");
-			res.end(item.content);
+			res.end(item.code);
 		}
 	};
 }
