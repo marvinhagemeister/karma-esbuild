@@ -24,7 +24,7 @@ export class Bundle {
 
 	generate() {
 		const files = Array.from(this.files).map(file => {
-			return `import "${path.relative(this.file, file)}";`;
+			return `import "${path.relative(this.dir, file)}";`;
 		});
 		return files.join("\n");
 	}
