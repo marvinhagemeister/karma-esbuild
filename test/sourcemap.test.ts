@@ -42,7 +42,23 @@ export async function run(config: any) {
 	const map = JSON.parse(mapText) as SourceMapPayload;
 
 	assert.deepStrictEqual(map.sources, [
-		path.join(process.cwd(), "/test/fixtures/sourcemap/files/sub/dep2.js"),
-		path.join(process.cwd(), "/test/fixtures/sourcemap/files/sub/main-b.js"),
+		path.join(
+			process.cwd(),
+			"test",
+			"fixtures",
+			"sourcemap",
+			"files",
+			"sub",
+			"dep2.js",
+		),
+		path.join(
+			process.cwd(),
+			"test",
+			"fixtures",
+			"sourcemap",
+			"files",
+			"sub",
+			"main-b.js",
+		),
 	]);
 }

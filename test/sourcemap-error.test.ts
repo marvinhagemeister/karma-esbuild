@@ -1,5 +1,5 @@
 import { assertEventuallyProgresses, runKarma } from "./test-utils";
-import { posix as path } from "path";
+import path from "path";
 import { strict as assert } from "assert";
 import { parseStackTrace } from "errorstacks";
 
@@ -27,8 +27,14 @@ export async function run(config: any) {
 			return `${location}:${x.line}:${x.column}`;
 		}),
 		[
-			"fixtures/sourcemap-error/files/sub/dep1.js:2:8",
-			"fixtures/sourcemap-error/files/main-a.js:5:10",
+			`${path.join(
+				"fixtures",
+				"sourcemap-error",
+				"files",
+				"sub",
+				"dep1.js",
+			)}:2:8`,
+			`${path.join("fixtures", "sourcemap-error", "files", "main-a.js")}:5:10`,
 		],
 	);
 }
