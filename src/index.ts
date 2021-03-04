@@ -63,8 +63,9 @@ function createPreprocessor(
 
 		const source = result.outputFiles[1];
 		const relative = path.relative(base, file);
+		const filename = path.basename(file);
 
-		const code = source.text + `\n//# sourceMappingURL=/base/${relative}.map`;
+		const code = source.text + `\n//# sourceMappingURL=${filename}.map`;
 
 		cache.set(relative, {
 			file: source.path,

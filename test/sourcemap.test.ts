@@ -33,7 +33,7 @@ export async function run(config: any) {
 		throw new Error("Unable to find source map url");
 	}
 
-	assert.equal(m[1], "/base/files/sub/main-b.js.map");
+	assert.equal(m[1], "main-b.js.map");
 
 	const mapText = await page.evaluate(() => {
 		return fetch("/base/files/sub/main-b.js.map").then(res => res.text());
