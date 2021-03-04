@@ -1,5 +1,5 @@
 import { runKarma } from "./test-utils";
-import path from "path";
+import { posix as path } from "path";
 import { assertEventually } from "pentf/assert_utils";
 import { strict as assert } from "assert";
 import { parseStackTrace } from "errorstacks";
