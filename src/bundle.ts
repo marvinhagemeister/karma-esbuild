@@ -2,9 +2,11 @@ import * as os from "os";
 import * as crypto from "crypto";
 import * as path from "path";
 import * as fs from "fs";
+import { SourceMapPayload } from "module";
 
 interface BundledFile {
 	code: string;
+	parsedMap: SourceMapPayload;
 	map: string;
 }
 
@@ -15,7 +17,11 @@ function random(length: number) {
 export class Bundle {
 	private dir = os.tmpdir();
 	private files = new Set<string>();
-	private item: BundledFile = { code: "", map: "" };
+	private item: BundledFile = {
+		code: "",
+		parsedMap: {} as SourceMapPayload,
+		map: "",
+	};
 	file = path.join(this.dir, `${random(16)}-bundle.js`);
 
 	addFile(file: string) {

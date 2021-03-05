@@ -29,13 +29,18 @@ export function debounce<A extends any[], R>(
 			deferred.reject(e);
 		}
 	}
-	return (...args: A): Promise<R> => {
+	function current() {
+		_deferred ||= new Deferred();
+		return _deferred.promise;
+	}
+	const debounced = (...args: A): Promise<R> => {
 		_args = args;
-		if (!_deferred) _deferred = new Deferred();
 		clearTimeout(timeout);
 		timeout = setTimeout(process, ms);
-		return _deferred.promise;
+		return current();
 	};
+	debounced.current = current;
+	return debounced;
 }
 
 export function formatTime(ms: number): string {

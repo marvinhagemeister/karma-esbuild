@@ -54,10 +54,15 @@ function createPreprocessor(
 	if (!config.files) {
 		config.files = [];
 	}
+	// Set preprocessor for our file to install sourceMap on it, giving Karma
+	// the ability do unminify stack traces.
+	config.preprocessors![bundle.file] = ["esbuild"];
+	// For the sourcemapping to work, the file must be served by Karma, preprocessed, and have
+	// the preproccessor attach a file.sourceMap.
 	config.files.push({
 		pattern: bundle.file,
 		included: true,
-		served: false,
+		served: true,
 		watched: false,
 	});
 	bundle.touch();
@@ -83,6 +88,7 @@ function createPreprocessor(
 
 		return {
 			code,
+			parsedMap: mapText,
 			map: JSON.stringify(mapText, null, 2),
 		};
 	}
@@ -180,6 +186,7 @@ function createPreprocessor(
 
 			bundle.write({
 				code: (err.stack || "").replace(/^/g, "// "),
+				parsedMap: {} as SourceMapPayload,
 				map: "",
 			});
 
@@ -191,6 +198,16 @@ function createPreprocessor(
 	return async function preprocess(content, file, done) {
 		// Prevent service closed message when we are still processing
 		if (stopped) return;
+
+		// If we're "preprocessing" the bundle file, all we need is to wait for
+		// the sourcemap to be generated for it.
+		if (file.originalPath === bundle.file) {
+			await writeBundle.current();
+			const item = bundle.read();
+			file.sourceMap = item.parsedMap;
+			done(null, item.code);
+			return;
+		}
 
 		if (count === 0) {
 			beforeProcess();
@@ -213,31 +230,25 @@ function createPreprocessor(
 }
 createPreprocessor.$inject = ["config", "emitter", "logger"];
 
-function createMiddleware() {
+function createSourcemapMiddleware() {
 	return async function (
 		req: IncomingMessage,
 		res: ServerResponse,
 		next: () => void,
 	) {
-		const match = /^\/absolute([^?#]*?)(\.map)?(\?|#|$)/.exec(req.url || "");
+		const match = /^\/absolute([^?#]*)\.map(\?|#|$)/.exec(req.url || "");
 		if (!match) return next();
 
 		const key = match[1];
-		const isMap = match[2] === ".map";
 		if (key !== bundle.file) return next();
 
 		const item = bundle.read();
-		if (isMap) {
-			res.setHeader("Content-Type", "application/json");
-			res.end(item.map);
-		} else {
-			res.setHeader("Content-Type", "text/javascript");
-			res.end(item.code);
-		}
+		res.setHeader("Content-Type", "application/json");
+		res.end(item.map);
 	};
 }
 
 module.exports = {
 	"preprocessor:esbuild": ["factory", createPreprocessor],
-	"middleware:esbuild": ["factory", createMiddleware],
+	"middleware:esbuild": ["factory", createSourcemapMiddleware],
 };
