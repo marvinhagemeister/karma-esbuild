@@ -9,24 +9,21 @@ export async function runKarma(
 	fixture: string,
 	options: { inherit?: boolean } = {},
 ) {
-	const app = path.join(__dirname, "..", "node_modules", ".bin", "karma");
-
+	const app = path.join("node_modules", ".bin", "karma");
 	const fixturePath = path.join(__dirname, "fixtures", fixture);
-
-	let output = {
+	const karmaConfig = path.join(fixturePath, "karma.conf.js");
+	const output = {
 		stdout: [] as string[],
 		stderr: [] as string[],
 	};
 
-	const karmaConfig = path.join(fixturePath, "karma.conf.js");
 	const child = child_process.spawn(
 		app,
 		["start", "--no-single-run", karmaConfig],
-		options.inherit
-			? {
-					stdio: "inherit",
-			  }
-			: {},
+		{
+			stdio: options.inherit ? "inherit" : undefined,
+			shell: true,
+		},
 	);
 
 	if (!options.inherit) {
@@ -45,8 +42,9 @@ export async function runKarma(
 			child.kill();
 		});
 
-		await assertEventually(
-			() => output.stdout.find(line => /server started/.test(line)),
+		await assertEventuallyProgresses(
+			output.stdout,
+			() => output.stdout.some(line => /server started/.test(line)),
 			{
 				message: "Could not find karma server started message",
 			},
@@ -60,4 +58,23 @@ export async function runKarma(
 			output.stderr = [];
 		},
 	};
+}
+
+export async function assertEventuallyProgresses(
+	stdout: string[],
+	cb: () => boolean,
+	options?: Parameters<typeof assertEventually>[1],
+) {
+	options = { ...options, timeout: 20_000 };
+	while (true) {
+		const { length } = stdout;
+		try {
+			return await assertEventually(cb, options);
+		} catch (e) {
+			if (stdout.length === length) {
+				// We didn't make any progress.
+				throw e;
+			}
+		}
+	}
 }

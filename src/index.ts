@@ -3,7 +3,7 @@ import { newCache } from "./cache";
 import chokidar, { FSWatcher } from "chokidar";
 import * as karma from "karma";
 import * as esbuild from "esbuild";
-import * as path from "path";
+import path from "path";
 import { SourceMapPayload } from "module";
 import { IncomingMessage, ServerResponse } from "http";
 
@@ -63,8 +63,9 @@ function createPreprocessor(
 
 		const source = result.outputFiles[1];
 		const relative = path.relative(base, file);
+		const filename = path.basename(file);
 
-		const code = source.text + `\n//# sourceMappingURL=/base/${relative}.map`;
+		const code = source.text + `\n//# sourceMappingURL=${filename}.map`;
 
 		cache.set(relative, {
 			file: source.path,
@@ -218,7 +219,7 @@ function createSourceMapMiddleware() {
 	) {
 		const url = (req.url || "").replace(/^\/base\//, "");
 
-		const key = url.replace(/\.map$/, "");
+		const key = url.replace(/\.map$/, "").replace(/\//g, path.sep);
 		if (cache.has(key)) {
 			const item = await cache.get(key);
 			res.setHeader("Content-Type", "application/json");

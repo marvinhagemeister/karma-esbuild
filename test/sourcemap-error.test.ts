@@ -1,6 +1,5 @@
-import { runKarma } from "./test-utils";
+import { assertEventuallyProgresses, runKarma } from "./test-utils";
 import path from "path";
-import { assertEventually } from "pentf/assert_utils";
 import { strict as assert } from "assert";
 import { parseStackTrace } from "errorstacks";
 
@@ -8,8 +7,8 @@ export const description = "Resolve source maps relative to an absolute root";
 export async function run(config: any) {
 	const { output } = await runKarma(config, "sourcemap-error");
 
-	await assertEventually(() => {
-		return output.stdout.find(line => /FAILED TESTS/.test(line));
+	await assertEventuallyProgresses(output.stdout, () => {
+		return output.stdout.some(line => /FAILED TESTS/.test(line));
 	});
 
 	const idx = output.stdout.findIndex(line => /Error: fail/.test(line));
@@ -28,8 +27,14 @@ export async function run(config: any) {
 			return `${location}:${x.line}:${x.column}`;
 		}),
 		[
-			"fixtures/sourcemap-error/files/sub/dep1.js:2:8",
-			"fixtures/sourcemap-error/files/main-a.js:5:10",
+			`${path.join(
+				"fixtures",
+				"sourcemap-error",
+				"files",
+				"sub",
+				"dep1.js",
+			)}:2:8`,
+			`${path.join("fixtures", "sourcemap-error", "files", "main-a.js")}:5:10`,
 		],
 	);
 }

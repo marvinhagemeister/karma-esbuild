@@ -1,5 +1,4 @@
-import { runKarma } from "./test-utils";
-import { assertEventually } from "pentf/assert_utils";
+import { assertEventuallyProgresses, runKarma } from "./test-utils";
 import { newPage } from "pentf/browser_utils";
 import { strict as assert } from "assert";
 
@@ -7,8 +6,8 @@ export const description = "Allow custom target setting";
 export async function run(config: any) {
 	const { output } = await runKarma(config, "target-custom");
 
-	await assertEventually(() => {
-		return output.stdout.find(line => /1 test completed/.test(line));
+	await assertEventuallyProgresses(output.stdout, () => {
+		return output.stdout.some(line => /1 test completed/.test(line));
 	});
 
 	const match = output.stdout
