@@ -8,7 +8,7 @@ export async function run(config: any) {
 	const { output } = await runKarma(config, "sourcemap-error");
 
 	await assertEventuallyProgresses(output.stdout, () => {
-		return output.stdout.some(line => /FAILED TESTS/.test(line));
+		return output.stdout.some(line => /Error: fail/.test(line));
 	});
 
 	const idx = output.stdout.findIndex(line => /Error: fail/.test(line));

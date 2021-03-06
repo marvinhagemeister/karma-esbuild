@@ -1,5 +1,10 @@
 describe("simple", () => {
 	it("should work", () => {
-		return true;
+		var test = () => {};
+		if (test.toString().includes("=>")) {
+			throw new Error(
+				"Looks like target setting failed to transpile arrow into regular functions",
+			);
+		}
 	});
 });
