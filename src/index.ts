@@ -199,9 +199,14 @@ function createPreprocessor(
 		// Prevent service closed message when we are still processing
 		if (stopped) return;
 
+		// Karma likes to turn a win32 path (C:\foo\bar) into a posix-like path (C:/foo/bar).
+		// Normally this wouldn't be so bad, but `bundle.file` is a true win32 path, and we
+		// need to test equality.
+		const filePath = path.normalize(file.originalPath);
+
 		// If we're "preprocessing" the bundle file, all we need is to wait for
 		// the sourcemap to be generated for it.
-		if (file.originalPath === bundle.file) {
+		if (filePath === bundle.file) {
 			await writeBundle.current();
 			const item = bundle.read();
 			file.sourceMap = item.parsedMap;
@@ -215,12 +220,12 @@ function createPreprocessor(
 		}
 		count++;
 
-		bundle.addFile(file.originalPath);
+		bundle.addFile(filePath);
 		await writeBundle();
 
 		const dummy = [
 			`/**`,
-			` * ${file.originalPath}`,
+			` * ${filePath}`,
 			` * See ${makeUrl(`/absolute${bundle.file}`)}`,
 			` */`,
 			`(function () {})()`,
@@ -239,8 +244,8 @@ function createSourcemapMiddleware() {
 		const match = /^\/absolute([^?#]*)\.map(\?|#|$)/.exec(req.url || "");
 		if (!match) return next();
 
-		const key = match[1];
-		if (key !== bundle.file) return next();
+		const filePath = path.normalize(match[1]);
+		if (filePath !== bundle.file) return next();
 
 		const item = bundle.read();
 		res.setHeader("Content-Type", "application/json");
