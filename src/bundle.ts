@@ -25,12 +25,15 @@ export class Bundle {
 	file = path.join(this.dir, `${random(16)}-bundle.js`);
 
 	addFile(file: string) {
-		this.files.add(file);
+		const normalized = path
+			.relative(this.dir, file)
+			.replace(/\\/g, path.posix.sep);
+		this.files.add(normalized);
 	}
 
 	generate() {
 		const files = Array.from(this.files).map(file => {
-			return `import "${path.relative(this.dir, file)}";`;
+			return `import "${file}";`;
 		});
 		return files.join("\n");
 	}
