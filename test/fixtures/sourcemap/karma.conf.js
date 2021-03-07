@@ -1,7 +1,37 @@
 const { baseConfig } = require("../../base.karma.conf");
 const path = require("path");
 
-let envPlugin = {
+const expectedSources = [
+	path.join(process.cwd(), "test", "fetch-polyfill.js"),
+	path.join(
+		process.cwd(),
+		"test",
+		"fixtures",
+		"sourcemap",
+		"files",
+		"main-a.js",
+	),
+	path.join(
+		process.cwd(),
+		"test",
+		"fixtures",
+		"sourcemap",
+		"files",
+		"sub",
+		"main-b.js",
+	),
+	path.join(
+		process.cwd(),
+		"test",
+		"fixtures",
+		"sourcemap",
+		"files",
+		"sub",
+		"dep2.js",
+	),
+].sort();
+
+const envPlugin = {
 	name: "env",
 	setup(build) {
 		// Intercept import paths called "env" so esbuild doesn't attempt
@@ -15,26 +45,7 @@ let envPlugin = {
 		// We're going to hook into esbuild and replace the "env" module loaded
 		// by the tests with our expected results.
 		build.onLoad({ filter: /^env$/, namespace: "env-ns" }, () => ({
-			contents: JSON.stringify([
-				path.join(
-					process.cwd(),
-					"test",
-					"fixtures",
-					"sourcemap",
-					"files",
-					"sub",
-					"dep2.js",
-				),
-				path.join(
-					process.cwd(),
-					"test",
-					"fixtures",
-					"sourcemap",
-					"files",
-					"sub",
-					"main-b.js",
-				),
-			]),
+			contents: JSON.stringify(expectedSources),
 			loader: "json",
 		}));
 	},

@@ -4,7 +4,7 @@ import expectedSources from "env";
 
 describe("simple", () => {
 	it("should work", async () => {
-		const script = document.querySelector('script[src$="-bundle.js"]');
+		const script = document.querySelector('script[src*="-bundle.js"]');
 		const { pathname } = new URL(script.src);
 		const js = await fetchPolyfill(script.src).then(res => res.text());
 
@@ -14,14 +14,16 @@ describe("simple", () => {
 		}
 
 		const filename = /[^/]+$/.exec(pathname);
-		if (!m[1] !== `${filename}.map`) {
-			throw new Error("unexpected sourceMappingURL value");
+		if (m[1] !== `${filename}.map`) {
+			throw new Error(
+				`unexpected sourceMappingURL value, wanted "${filename}.map" but got "${m[1]}"`,
+			);
 		}
 
 		const mapText = await fetchPolyfill(`${pathname}.map`).then(res =>
 			res.text(),
 		);
-		const { sources } = JSON.parse(mapText);
+		const sources = JSON.parse(mapText).sources.sort();
 
 		if (sources.length !== expectedSources.length) {
 			throw new Error(
