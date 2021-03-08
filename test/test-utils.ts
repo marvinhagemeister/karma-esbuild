@@ -72,6 +72,7 @@ export async function assertEventuallyProgresses(
 			return await assertEventually(cb, options);
 		} catch (e) {
 			if (stdout.length === length) {
+				console.error(stdout);
 				// We didn't make any progress.
 				throw e;
 			}

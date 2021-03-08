@@ -12,7 +12,7 @@ describe("sourcemap-fetch", () => {
 	}
 
 	it("should fetch real sourcemap", () => {
-		return getMap('script[src*="main-a.js"]');
+		return getMap('script[src*="-bundle.js"]');
 	});
 
 	it("should 404 unknown file", () => {
