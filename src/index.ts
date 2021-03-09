@@ -67,8 +67,7 @@ function createPreprocessor(
 	// the ability do unminify stack traces.
 	config.preprocessors![bundle.file] = ["esbuild"];
 	// For the sourcemapping to work, the file must be served by Karma, preprocessed, and have
-	// the preproccessor attach a file.sourceMap. Karma's direct watch (not our
-	// watch) must be enabled to allow the preprocessor to run mulitple times.
+	// the preproccessor attach a file.sourceMap.
 	config.files.push({
 		pattern: bundle.file,
 		included: true,
