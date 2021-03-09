@@ -1,4 +1,4 @@
-class Deferred<T> {
+export class Deferred<T> {
 	declare promise: Promise<T>;
 	declare resolve: (value: T | PromiseLike<T>) => void;
 	declare reject: (reason: Error) => void;
@@ -29,18 +29,13 @@ export function debounce<A extends any[], R>(
 			deferred.reject(e);
 		}
 	}
-	function current() {
-		_deferred ||= new Deferred();
-		return _deferred.promise;
-	}
-	const debounced = (...args: A): Promise<R> => {
+	return (...args: A): Promise<R> => {
 		_args = args;
+		_deferred ||= new Deferred();
 		clearTimeout(timeout);
 		timeout = setTimeout(process, ms);
-		return current();
+		return _deferred.promise;
 	};
-	debounced.current = current;
-	return debounced;
 }
 
 export function formatTime(ms: number): string {
