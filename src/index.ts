@@ -87,6 +87,15 @@ function createPreprocessor(
 			// Ignore dot files and anything from node_modules
 			ignored: /((^|[/\\])\..|node_modules)/,
 		});
+		const alreadyWatched = config.files.reduce((watched: string[], file) => {
+			if (typeof file === "string") {
+				watched.push(file);
+			} else if (file.watched) {
+				watched.push(file.pattern);
+			}
+			return watched;
+		}, []);
+		watcher.unwatch(alreadyWatched);
 		// Register shutdown handler
 		emitter.on("exit", done => {
 			watcher!.close();
