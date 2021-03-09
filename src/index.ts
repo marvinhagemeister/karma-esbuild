@@ -118,11 +118,6 @@ function createPreprocessor(
 		watcher.on("add", onWatch);
 	}
 
-	function makeUrl(path: string) {
-		const url = `${config.protocol}//${config.hostname}:${config.port}`;
-		return url + path;
-	}
-
 	async function build(contents: string, file: string) {
 		const userConfig = { ...config.esbuild };
 
@@ -222,8 +217,11 @@ function createPreprocessor(
 		count++;
 
 		bundle.addFile(filePath);
-		await writeBundle();
+		writeBundle();
 
+		// Turn the file into a `dom` type with empty contents to get Karma to
+		// inject the contents as HTML text. Since the contents are empty, it
+		// effectively drops the script from being included into the Karma runner.
 		file.type = "dom";
 		done(null, "");
 	};
