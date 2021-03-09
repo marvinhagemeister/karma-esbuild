@@ -31,7 +31,6 @@ export class Bundle {
 	// to it without causing Karma to refresh. So, we have a real file that we
 	// write to, and allow esbuild to build from.
 	file = path.join(this.dir, `${random(16)}-bundle.js`);
-	private realFile = this.file.replace(/\.js$/, ".mjs");
 
 	// Dirty signifies that new data has been written, and is cleared once a build starts.
 	private _dirty = false;
@@ -86,7 +85,6 @@ export class Bundle {
 
 	touch() {
 		fs.writeFileSync(this.file, "");
-		fs.writeFileSync(this.realFile, "");
 	}
 
 	async stop() {
@@ -108,7 +106,7 @@ export class Bundle {
 				const files = Array.from(this.files).map(file => {
 					return `import "${file}";`;
 				});
-				fs.writeFileSync(this.realFile, files.join("\n"));
+				fs.writeFileSync(this.file, files.join("\n"));
 			}
 			if (this.incrementalBuild) {
 				const result = await this.incrementalBuild.rebuild();
@@ -118,7 +116,7 @@ export class Bundle {
 			const result = (await esbuild.build({
 				target: "es2015",
 				...this.config,
-				entryPoints: [this.realFile],
+				entryPoints: [this.file],
 				bundle: true,
 				write: false,
 				incremental: true,
