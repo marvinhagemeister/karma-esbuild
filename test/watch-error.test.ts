@@ -30,7 +30,7 @@ export async function run(config: any) {
 	await write(`export function;;;123+++++`);
 
 	await assertEventuallyProgresses(output.stdout, () => {
-		return output.stdout.some(line => /Build failed with/.test(line));
+		return output.stdout.some(line => /^Build failed with/.test(line));
 	});
 
 	resetLog();
