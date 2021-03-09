@@ -6,8 +6,7 @@ import { SourceMapPayload } from "module";
 
 interface BundledFile {
 	code: string;
-	parsedMap: SourceMapPayload;
-	map: string;
+	map: SourceMapPayload;
 }
 
 function random(length: number) {
@@ -19,8 +18,7 @@ export class Bundle {
 	private files = new Set<string>();
 	private item: BundledFile = {
 		code: "",
-		parsedMap: {} as SourceMapPayload,
-		map: "",
+		map: {} as SourceMapPayload,
 	};
 	file = path.join(this.dir, `${random(16)}-bundle.js`);
 

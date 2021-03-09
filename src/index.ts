@@ -89,8 +89,7 @@ function createPreprocessor(
 
 		return {
 			code,
-			parsedMap: mapText,
-			map: JSON.stringify(mapText, null, 2),
+			map: mapText,
 		};
 	}
 
@@ -182,8 +181,7 @@ function createPreprocessor(
 
 			bundle.write({
 				code: `console.error(${JSON.stringify(err.message)})`,
-				parsedMap: {} as SourceMapPayload,
-				map: "",
+				map: {} as SourceMapPayload,
 			});
 
 			count = 0;
@@ -201,11 +199,11 @@ function createPreprocessor(
 		const filePath = path.normalize(file.originalPath);
 
 		// If we're "preprocessing" the bundle file, all we need is to wait for
-		// the sourcemap to be generated for it.
+		// the bundle to be generated for it.
 		if (filePath === bundle.file) {
 			await writeBundle.current();
 			const item = bundle.read();
-			file.sourceMap = item.parsedMap;
+			file.sourceMap = item.map;
 			done(null, item.code);
 			return;
 		}
@@ -242,7 +240,7 @@ function createSourcemapMiddleware() {
 
 		const item = bundle.read();
 		res.setHeader("Content-Type", "application/json");
-		res.end(item.map);
+		res.end(JSON.stringify(item.map, null, 2));
 	};
 }
 
