@@ -2,10 +2,11 @@ import { debounce, formatTime } from "./utils";
 import { Bundle } from "./bundle";
 import chokidar, { FSWatcher } from "chokidar";
 import * as karma from "karma";
-import * as esbuild from "esbuild";
 import * as path from "path";
 import { SourceMapPayload } from "module";
 import { IncomingMessage, ServerResponse } from "http";
+
+import type esbuild from "esbuild";
 
 interface KarmaFile {
 	originalPath: string;
@@ -31,7 +32,7 @@ interface KarmaLogger {
 	};
 }
 
-const bundle = new Bundle();
+let bundle: Bundle;
 
 function createPreprocessor(
 	config: karma.ConfigOptions & {
@@ -41,7 +42,14 @@ function createPreprocessor(
 	logger: KarmaLogger,
 ): KarmaPreprocess {
 	const log = logger.create("esbuild");
-	const base = config.basePath || process.cwd();
+	const basePath = config.basePath || process.cwd();
+	const { bundleDelay = 700, ...userConfig } = config.esbuild || {};
+
+	// Use some trickery to get the root in both posix and win32. win32 could
+	// have multiple drive paths as root, so find root relative to the basePath.
+	userConfig.outdir = path.resolve(basePath, "/");
+
+	bundle = new Bundle(log, userConfig);
 
 	// Inject middleware to handle the bundled file and map.
 	if (!config.middleware) {
@@ -59,7 +67,8 @@ function createPreprocessor(
 	// the ability do unminify stack traces.
 	config.preprocessors![bundle.file] = ["esbuild"];
 	// For the sourcemapping to work, the file must be served by Karma, preprocessed, and have
-	// the preproccessor attach a file.sourceMap.
+	// the preproccessor attach a file.sourceMap. Karma's direct watch (not our
+	// watch) must be enabled to allow the preprocessor to run mulitple times.
 	config.files.push({
 		pattern: bundle.file,
 		included: true,
@@ -68,37 +77,11 @@ function createPreprocessor(
 	});
 	bundle.touch();
 
-	let service: esbuild.Service | null = null;
-
-	function processResult(
-		result: esbuild.BuildResult & {
-			outputFiles: esbuild.OutputFile[];
-		},
-		file: string,
-	) {
-		const map = result.outputFiles[0];
-		const source = result.outputFiles[1];
-
-		// Sources paths must be absolute, otherwise vscode will be unable
-		// to find breakpoints
-		const mapText = JSON.parse(map.text) as SourceMapPayload;
-		mapText.sources = mapText.sources.map(s => path.join(base, s));
-
-		const code =
-			source.text + `\n//# sourceMappingURL=${path.basename(file)}.map`;
-
-		return {
-			code,
-			map: mapText,
-		};
-	}
-
 	let watcher: FSWatcher | null = null;
 	const watchMode = !config.singleRun && !!config.autoWatch;
 	if (watchMode) {
 		// Initialize watcher to listen for changes in basePath so
 		// that we'll be notified of any new files
-		const basePath = config.basePath || process.cwd();
 		watcher = chokidar.watch([basePath], {
 			ignoreInitial: true,
 			// Ignore dot files and anything from node_modules
@@ -111,88 +94,43 @@ function createPreprocessor(
 		});
 
 		const onWatch = debounce(() => {
+			// Dirty the bundle first, to make sure we don't attempt to read an
+			// already compiled result.
+			bundle.dirty();
 			emitter.refreshFiles();
 		}, 100);
 		watcher.on("change", onWatch);
 		watcher.on("add", onWatch);
 	}
 
-	async function build(contents: string, file: string) {
-		const userConfig = { ...config.esbuild };
-
-		const result = await service!.build({
-			target: "es2015",
-			...userConfig,
-			bundle: true,
-			write: false,
-			stdin: {
-				contents,
-				resolveDir: path.dirname(file),
-				sourcefile: path.basename(file),
-			},
-			platform: "browser",
-			sourcemap: "external",
-			outdir: base,
-			define: {
-				"process.env.NODE_ENV": JSON.stringify(
-					process.env.NODE_ENV || "development",
-				),
-				...userConfig.define,
-			},
-		});
-
-		return processResult(result, file);
-	}
-
+	let startTime = 0;
 	const beforeProcess = debounce(() => {
+		startTime = Date.now();
 		log.info(`Compiling to ${bundle.file}...`);
 	}, 10);
-	const afterPreprocess = debounce((time: number) => {
+	const afterProcess = debounce(() => {
 		log.info(
-			`Compiling done (${formatTime(Date.now() - time)}, with ${formatTime(
+			`Compiling done (${formatTime(Date.now() - startTime)}, with ${formatTime(
 				bundleDelay,
 			)} delay)`,
 		);
 	}, 10);
 
 	let stopped = false;
-	let count = 0;
-	let startTime = 0;
-	const bundleDelay = config.esbuild?.bundleDelay ?? 200;
+	emitter.on("exit", done => {
+		bundle.stop();
+		stopped = true;
+		done();
+	});
 
-	const writeBundle = debounce(async () => {
-		if (service === null) {
-			service = await esbuild.startService();
-			emitter.on("exit", done => {
-				stopped = true;
-				service!.stop();
-				done();
-			});
-		}
-
-		try {
-			const result = await build(bundle.generate(), bundle.file);
-			bundle.write(result);
-
-			count = 0;
-			afterPreprocess(startTime);
-		} catch (err) {
-			log.error(err.message);
-
-			bundle.write({
-				code: `console.error(${JSON.stringify(err.message)})`,
-				map: {} as SourceMapPayload,
-			});
-
-			count = 0;
-			afterPreprocess(startTime);
-		}
-	}, bundleDelay);
-
-	return async function preprocess(content, file, done) {
+	const buildBundle = debounce(() => {
 		// Prevent service closed message when we are still processing
 		if (stopped) return;
 
+		return bundle.write(beforeProcess, afterProcess);
+	}, bundleDelay);
+
+	return async function preprocess(content, file, done) {
 		// Karma likes to turn a win32 path (C:\foo\bar) into a posix-like path (C:/foo/bar).
 		// Normally this wouldn't be so bad, but `bundle.file` is a true win32 path, and we
 		// need to test equality.
@@ -201,21 +139,15 @@ function createPreprocessor(
 		// If we're "preprocessing" the bundle file, all we need is to wait for
 		// the bundle to be generated for it.
 		if (filePath === bundle.file) {
-			await writeBundle.current();
-			const item = bundle.read();
+			const item = await bundle.read();
 			file.sourceMap = item.map;
 			done(null, item.code);
 			return;
 		}
 
-		if (count === 0) {
-			beforeProcess();
-			startTime = Date.now();
-		}
-		count++;
-
 		bundle.addFile(filePath);
-		writeBundle();
+		bundle.dirty();
+		buildBundle();
 
 		// Turn the file into a `dom` type with empty contents to get Karma to
 		// inject the contents as HTML text. Since the contents are empty, it
@@ -238,7 +170,7 @@ function createSourcemapMiddleware() {
 		const filePath = path.normalize(match[1]);
 		if (filePath !== bundle.file) return next();
 
-		const item = bundle.read();
+		const item = await bundle.read();
 		res.setHeader("Content-Type", "application/json");
 		res.end(JSON.stringify(item.map, null, 2));
 	};
