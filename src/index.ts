@@ -13,6 +13,7 @@ interface KarmaFile {
 	contentPath: string;
 	/** This is a must for mapped stack traces */
 	sourceMap?: SourceMapPayload;
+	type: karma.FilePatternTypes;
 }
 
 type KarmaPreprocess = (
@@ -150,7 +151,7 @@ function createPreprocessor(
 	}
 
 	const beforeProcess = debounce(() => {
-		log.info("Compiling...");
+		log.info(`Compiling to ${bundle.file}...`);
 	}, 10);
 	const afterPreprocess = debounce((time: number) => {
 		log.info(
@@ -223,14 +224,8 @@ function createPreprocessor(
 		bundle.addFile(filePath);
 		await writeBundle();
 
-		const dummy = [
-			`/**`,
-			` * ${filePath}`,
-			` * See ${makeUrl(`/absolute${bundle.file}`)}`,
-			` */`,
-			`(function () {})()`,
-		];
-		done(null, dummy.join("\n"));
+		file.type = "dom";
+		done(null, "");
 	};
 }
 createPreprocessor.$inject = ["config", "emitter", "logger"];
