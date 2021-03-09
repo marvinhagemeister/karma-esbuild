@@ -185,7 +185,7 @@ function createPreprocessor(
 			log.error(err.message);
 
 			bundle.write({
-				code: `console.error(${JSON.stringify(err.message)}`,
+				code: `console.error(${JSON.stringify(err.message)})`,
 				parsedMap: {} as SourceMapPayload,
 				map: "",
 			});
