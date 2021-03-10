@@ -1,3 +1,5 @@
+import * as crypto from "crypto";
+
 export class Deferred<T> {
 	declare promise: Promise<T>;
 	declare resolve: (value: T | PromiseLike<T>) => void;
@@ -9,6 +11,10 @@ export class Deferred<T> {
 			this.reject = reject;
 		});
 	}
+}
+
+export function random(length: number) {
+	return crypto.randomBytes(length).toString("hex");
 }
 
 export function debounce<A extends any[], R>(

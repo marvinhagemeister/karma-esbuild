@@ -1,12 +1,13 @@
 import { debounce, formatTime } from "./utils";
 import { Bundle } from "./bundle";
-import chokidar, { FSWatcher } from "chokidar";
+import chokidar from "chokidar";
 import * as karma from "karma";
 import * as path from "path";
-import { SourceMapPayload } from "module";
-import { IncomingMessage, ServerResponse } from "http";
 
 import type esbuild from "esbuild";
+import type { SourceMapPayload } from "module";
+import type { IncomingMessage, ServerResponse } from "http";
+import type { FSWatcher } from "chokidar";
 
 interface KarmaFile {
 	originalPath: string;
@@ -24,12 +25,7 @@ type KarmaPreprocess = (
 ) => void;
 
 interface KarmaLogger {
-	create(
-		label: string,
-	): {
-		info(message: string): void;
-		error(message: string): void;
-	};
+	create(label: string): Pick<Console, "info" | "error">;
 }
 
 let bundle: Bundle;
@@ -86,6 +82,7 @@ function createPreprocessor(
 			// Ignore dot files and anything from node_modules
 			ignored: /((^|[/\\])\..|node_modules)/,
 		});
+
 		const alreadyWatched = config.files.reduce((watched: string[], file) => {
 			if (typeof file === "string") {
 				watched.push(file);
@@ -95,6 +92,7 @@ function createPreprocessor(
 			return watched;
 		}, []);
 		watcher.unwatch(alreadyWatched);
+
 		// Register shutdown handler
 		emitter.on("exit", done => {
 			watcher!.close();
@@ -112,29 +110,27 @@ function createPreprocessor(
 	}
 
 	let startTime = 0;
-	const beforeProcess = debounce(() => {
+	function beforeProcess() {
 		startTime = Date.now();
 		log.info(`Compiling to ${bundle.file}...`);
-	}, 10);
-	const afterProcess = debounce(() => {
+	}
+	function afterProcess() {
 		log.info(
 			`Compiling done (${formatTime(Date.now() - startTime)}, with ${formatTime(
 				bundleDelay,
 			)} delay)`,
 		);
-	}, 10);
+	}
 
 	let stopped = false;
 	emitter.on("exit", done => {
-		bundle.stop();
 		stopped = true;
-		done();
+		bundle.stop().then(done);
 	});
 
 	const buildBundle = debounce(() => {
 		// Prevent service closed message when we are still processing
 		if (stopped) return;
-
 		return bundle.write(beforeProcess, afterProcess);
 	}, bundleDelay);
 

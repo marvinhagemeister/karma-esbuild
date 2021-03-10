@@ -1,11 +1,10 @@
 import * as os from "os";
-import * as crypto from "crypto";
 import * as path from "path";
 import * as fs from "fs";
 import * as esbuild from "esbuild";
-import { SourceMapPayload } from "module";
-import { Deferred } from "./utils";
+import { Deferred, random } from "./utils";
 
+import type { SourceMapPayload } from "module";
 interface BundledFile {
 	code: string;
 	map: SourceMapPayload;
@@ -16,10 +15,6 @@ type BuildResult = esbuild.BuildIncremental & {
 };
 
 type Logger = Pick<Console, "info" | "error">;
-
-function random(length: number) {
-	return crypto.randomBytes(length).toString("hex");
-}
 
 export class Bundle {
 	private declare config: esbuild.BuildOptions;
@@ -59,7 +54,7 @@ export class Bundle {
 		this.deferred = new Deferred();
 	}
 
-	async write(beforeProcess: () => {}, afterProcess: () => {}) {
+	async write(beforeProcess: () => void, afterProcess: () => void) {
 		if (this.buildsInProgress === 0) beforeProcess();
 		this.buildsInProgress++;
 
@@ -149,7 +144,8 @@ export class Bundle {
 		const basename = path.basename(this.file);
 		const code = source + `\n//# sourceMappingURL=${basename}.map`;
 		// outdir is guaranteed to be the root of the file system.
-		map.sources = map.sources.map(s => path.join(this.config.outdir!, s));
+		const outdir = this.config.outdir!;
+		map.sources = map.sources.map(s => path.join(outdir, s));
 		map.file = basename;
 
 		return {
