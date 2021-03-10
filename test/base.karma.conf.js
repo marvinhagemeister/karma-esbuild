@@ -4,7 +4,6 @@ module.exports = {
 			"karma-mocha",
 			"karma-mocha-reporter",
 			"karma-jsdom-launcher",
-			"karma-sourcemap-loader",
 			require("../src/index"),
 		],
 
