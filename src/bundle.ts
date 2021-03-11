@@ -1,9 +1,8 @@
-import * as os from "os";
 import * as path from "path";
-import * as fs from "fs";
 import * as esbuild from "esbuild";
-import { Deferred, random } from "./utils";
+import { Deferred } from "./utils";
 
+import type { Log } from "./utils";
 import type { SourceMapPayload } from "module";
 interface BundledFile {
 	code: string;
@@ -14,38 +13,41 @@ type BuildResult = esbuild.BuildIncremental & {
 	outputFiles: esbuild.OutputFile[];
 };
 
-type Logger = Pick<Console, "info" | "error">;
-
 export class Bundle {
+	private declare file: string;
+	private declare log: Log;
 	private declare config: esbuild.BuildOptions;
-	private declare log: Logger;
 
-	private dir = os.tmpdir();
-	private files = new Set<string>();
-	// The `file` is a dummy, meant to allow Karma to work. But, we can't write
-	// to it without causing Karma to refresh. So, we have a real file that we
-	// write to, and allow esbuild to build from.
-	file = path.join(this.dir, `${random(16)}-bundle.js`);
-
-	// Dirty signifies that new data has been written, and is cleared once a build starts.
+	// Dirty signifies that that the current result is stale, and a new build is
+	// needed. It's reset during the next build.
 	private _dirty = false;
-	// buildsInProgress tracks the number of builds. When a build takes too long, a new build
-	// may have started before the original completed. In this case, we resolve the build with
-	// the latest result.
+	// buildsInProgress tracks the number of builds. When a build takes too
+	// long, a new build may have started before the original completed. In this
+	// case, we resolve the old build with the latest result.
 	private buildsInProgress = 0;
 	private deferred = new Deferred<BundledFile>();
 	private incrementalBuild: esbuild.BuildIncremental | null = null;
 
-	constructor(log: Logger, config: esbuild.BuildOptions) {
+	constructor(file: string, log: Log, config: esbuild.BuildOptions) {
+		this.file = file;
 		this.log = log;
-		this.config = config;
-	}
 
-	addFile(file: string) {
-		const normalized = path
-			.relative(this.file, file)
-			.replace(/\\/g, path.posix.sep);
-		this.files.add(normalized);
+		this.config = {
+			target: "es2015",
+			...config,
+			entryPoints: [file],
+			bundle: true,
+			write: false,
+			incremental: true,
+			platform: "browser",
+			sourcemap: "external",
+			define: {
+				"process.env.NODE_ENV": JSON.stringify(
+					process.env.NODE_ENV || "development",
+				),
+				...config.define,
+			},
+		};
 	}
 
 	dirty() {
@@ -78,10 +80,6 @@ export class Bundle {
 		return this.deferred.promise;
 	}
 
-	touch() {
-		fs.writeFileSync(this.file, "");
-	}
-
 	async stop() {
 		// Wait for any in-progress builds to finish. At this point, we know no
 		// new ones will come in, we're just waiting for the current one to
@@ -96,34 +94,13 @@ export class Bundle {
 
 	private async bundle() {
 		try {
-			if (this._dirty) {
-				this._dirty = false;
-				const files = Array.from(this.files).map(file => {
-					return `import "${file}";`;
-				});
-				fs.writeFileSync(this.file, files.join("\n"));
-			}
+			this._dirty = false;
 			if (this.incrementalBuild) {
 				const result = await this.incrementalBuild.rebuild();
 				return this.processResult(result as BuildResult);
 			}
 
-			const result = (await esbuild.build({
-				target: "es2015",
-				...this.config,
-				entryPoints: [this.file],
-				bundle: true,
-				write: false,
-				incremental: true,
-				platform: "browser",
-				sourcemap: "external",
-				define: {
-					"process.env.NODE_ENV": JSON.stringify(
-						process.env.NODE_ENV || "development",
-					),
-					...this.config.define,
-				},
-			})) as BuildResult;
+			const result = (await esbuild.build(this.config)) as BuildResult;
 			this.incrementalBuild = result;
 
 			return this.processResult(result);
@@ -148,9 +125,6 @@ export class Bundle {
 		map.sources = map.sources.map(s => path.join(outdir, s));
 		map.file = basename;
 
-		return {
-			code,
-			map: map,
-		};
+		return { code, map };
 	}
 }
