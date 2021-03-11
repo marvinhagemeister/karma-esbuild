@@ -24,8 +24,7 @@
 		"dist/"
 	],
 	"dependencies": {
-		"chokidar": "^3.5.1",
-		"karma-sourcemap-loader": "^0.3.8"
+		"chokidar": "^3.5.1"
 	},
 	"peerDependencies": {
 		"esbuild": ">=0.8.45"

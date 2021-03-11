@@ -17,7 +17,7 @@ module.exports = function (config) {
 	config.set({
 		preprocessors: {
 			// Add esbuild to your preprocessors
-			"test/**/*.test.js": ["esbuild", "sourcemap"],
+			"test/**/*.test.js": ["esbuild"],
 		},
 	});
 };
@@ -32,7 +32,7 @@ module.exports = function (config) {
 	config.set({
 		preprocessors: {
 			// Add esbuild to your preprocessors
-			"test/**/*.test.js": ["esbuild", "sourcemap"],
+			"test/**/*.test.js": ["esbuild"],
 		},
 
 		esbuild: {

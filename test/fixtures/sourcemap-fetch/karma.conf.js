@@ -4,7 +4,7 @@ module.exports = function (config) {
 	config.set({
 		...baseConfig,
 		preprocessors: {
-			"**/*.js": ["esbuild", "sourcemap"],
+			"**/*.js": ["esbuild"],
 		},
 	});
 };
