@@ -1,5 +1,6 @@
 import * as crypto from "crypto";
 
+export type Log = Pick<Console, "info" | "error">;
 export class Deferred<T> {
 	declare promise: Promise<T>;
 	declare resolve: (value: T | PromiseLike<T>) => void;
