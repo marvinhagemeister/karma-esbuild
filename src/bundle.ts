@@ -1,12 +1,13 @@
 import * as path from "path";
 import * as esbuild from "esbuild";
-import { Deferred } from "./utils";
+import { Deferred, formatTime } from "./utils";
 
 import type { Log } from "./utils";
-import type { SourceMapPayload } from "module";
+import type { RawSourceMap } from "source-map";
+
 interface BundledFile {
 	code: string;
-	map: SourceMapPayload;
+	map: RawSourceMap;
 }
 
 type BuildResult = esbuild.BuildIncremental & {
@@ -14,7 +15,7 @@ type BuildResult = esbuild.BuildIncremental & {
 };
 
 export class Bundle {
-	private declare file: string;
+	declare file: string;
 	private declare log: Log;
 	private declare config: esbuild.BuildOptions;
 
@@ -27,6 +28,10 @@ export class Bundle {
 	private buildsInProgress = 0;
 	private deferred = new Deferred<BundledFile>();
 	private incrementalBuild: esbuild.BuildIncremental | null = null;
+	private startTime = 0;
+
+	// The sourcemap must be synchronously available for formatError.
+	sourcemap = {} as RawSourceMap;
 
 	constructor(file: string, log: Log, config: esbuild.BuildOptions) {
 		this.file = file;
@@ -56,8 +61,8 @@ export class Bundle {
 		this.deferred = new Deferred();
 	}
 
-	async write(beforeProcess: () => void, afterProcess: () => void) {
-		if (this.buildsInProgress === 0) beforeProcess();
+	async write() {
+		if (this.buildsInProgress === 0) this.beforeProcess();
 		this.buildsInProgress++;
 
 		const { deferred } = this;
@@ -71,9 +76,20 @@ export class Bundle {
 			return deferred.promise;
 		}
 
-		afterProcess();
+		this.afterProcess();
 		deferred.resolve(result);
 		return result;
+	}
+
+	private beforeProcess() {
+		this.startTime = Date.now();
+		this.log.info(`Compiling to ${this.file}...`);
+	}
+
+	private afterProcess() {
+		this.log.info(
+			`Compiling done (${formatTime(Date.now() - this.startTime)})`,
+		);
 	}
 
 	read() {
@@ -109,13 +125,13 @@ export class Bundle {
 
 			return {
 				code: `console.error(${JSON.stringify(err.message)})`,
-				map: {} as SourceMapPayload,
+				map: {} as RawSourceMap,
 			};
 		}
 	}
 
 	private processResult(result: BuildResult) {
-		const map = JSON.parse(result.outputFiles[0].text) as SourceMapPayload;
+		const map = JSON.parse(result.outputFiles[0].text) as RawSourceMap;
 		const source = result.outputFiles[1].text;
 
 		const basename = path.basename(this.file);
@@ -124,6 +140,8 @@ export class Bundle {
 		const outdir = this.config.outdir!;
 		map.sources = map.sources.map(s => path.join(outdir, s));
 		map.file = basename;
+
+		this.sourcemap = map;
 
 		return { code, map };
 	}
