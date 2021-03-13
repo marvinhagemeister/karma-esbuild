@@ -1,4 +1,5 @@
 import { SourceMapConsumer } from "source-map";
+import * as path from "path";
 
 import type { Bundle } from "./bundle";
 import type { RawSourceMap } from "source-map";
@@ -22,8 +23,9 @@ export function createFormatError(bundle: Bundle, formatError?: Formatter) {
 	}
 
 	return (message: string) => {
-		const unminified = message.replace(regex, (match, path, line, column) => {
-			if (path !== bundle.file) return match;
+		const unminified = message.replace(regex, (match, source, line, column) => {
+			source = path.normalize(source);
+			if (source !== bundle.file) return match;
 
 			try {
 				const consumer = get(bundle.sourcemap);
@@ -32,7 +34,7 @@ export function createFormatError(bundle: Bundle, formatError?: Formatter) {
 					column: +column - 1,
 				});
 				return `${format(loc.source, loc.line, loc.column + 1)} <- ${format(
-					path,
+					source,
 					line,
 					column,
 				)}`;
