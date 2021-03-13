@@ -1,16 +1,15 @@
 import { debounce } from "./utils";
 import { Bundle } from "./bundle";
 import { TestEntryPoint } from "./test-entry-point";
+import { createFormatError } from "./format-error";
 import chokidar from "chokidar";
 import * as path from "path";
-import { SourceMapConsumer } from "source-map";
 
 import type esbuild from "esbuild";
 import type karma from "karma";
 import type { IncomingMessage, ServerResponse } from "http";
 import type { FSWatcher } from "chokidar";
 import type { Log } from "./utils";
-import { RawSourceMap } from "source-map";
 
 interface KarmaFile {
 	originalPath: string;
@@ -166,48 +165,6 @@ function createMiddleware(bundle: Bundle) {
 	};
 }
 createMiddleware.$inject = ["karmaEsbuildBundler"];
-
-function createFormatError(
-	bundle: Bundle,
-	formatError?: (m: string) => string,
-) {
-	const consumers = new WeakMap<RawSourceMap, SourceMapConsumer>();
-	const regex = /(\/[^ #?:]+)[^ :]*:(\d+):(\d+)/g;
-
-	function get(sourcemap: RawSourceMap) {
-		const existing = consumers.get(sourcemap);
-		if (existing) return existing;
-		const consumer = new SourceMapConsumer(bundle.sourcemap);
-		consumers.set(sourcemap, consumer);
-		return consumer;
-	}
-
-	function format(file: string, line: number, column: number) {
-		return `${file}:${line}:${column}`;
-	}
-
-	return (message: string) => {
-		const unminified = message.replace(regex, (match, path, line, column) => {
-			if (path !== bundle.file) return match;
-
-			try {
-				const consumer = get(bundle.sourcemap);
-				const loc = consumer.originalPositionFor({
-					line: +line,
-					column: +column - 1,
-				});
-				return `${format(loc.source, loc.line, loc.column + 1)} <- ${format(
-					path,
-					line,
-					column,
-				)}`;
-			} catch {
-				return match;
-			}
-		});
-		return formatError ? formatError(unminified) : unminified + "\n";
-	};
-}
 
 function createEsbuildLog(logger: KarmaLogger) {
 	return logger.create("esbuild");
