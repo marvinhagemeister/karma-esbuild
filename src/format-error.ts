@@ -7,7 +7,7 @@ type Formatter = (m: string) => string;
 
 export function createFormatError(bundle: Bundle, formatError?: Formatter) {
 	const consumers = new WeakMap<RawSourceMap, SourceMapConsumer>();
-	const regex = /(\/[^ #?:]+)[^ :]*:(\d+):(\d+)/g;
+	const regex = /((?:\b[A-Z]:)?\/[^ #?:]+)[^ :]*:(\d+):(\d+)/gi;
 
 	function get(sourcemap: RawSourceMap) {
 		const existing = consumers.get(sourcemap);
