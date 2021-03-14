@@ -9,6 +9,11 @@ type Formatter = (m: string) => string;
 export function createFormatError(bundle: Bundle, formatError?: Formatter) {
 	const consumers = new WeakMap<RawSourceMap, SourceMapConsumer>();
 	const regex = /((?:\b[A-Z]:)?\/[^ #?:]+)[^ :]*:(\d+):(\d+)/gi;
+	//             |            |          ||    ||    |^^^^^^ Column
+	//             |            |          ||    |^^^^^^ Line
+	//             |            |          |^^^^^^ Eat any reamining URL (query in particular)
+	//             ^^^^^^^^^^^^^^^^^^^^^^^^^ URL pathname extraction
+	//             ^^^^^^^^^^^^^^ Optionally find a leading win32 disk name (eg, C:)
 
 	function get(sourcemap: RawSourceMap) {
 		const existing = consumers.get(sourcemap);
