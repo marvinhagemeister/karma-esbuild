@@ -1,12 +1,12 @@
-import { debounce, formatTime } from "./utils";
+import { debounce } from "./utils";
 import { Bundle } from "./bundle";
 import { TestEntryPoint } from "./test-entry-point";
+import { createFormatError } from "./format-error";
 import chokidar from "chokidar";
 import * as path from "path";
 
 import type esbuild from "esbuild";
 import type karma from "karma";
-import type { SourceMapPayload } from "module";
 import type { IncomingMessage, ServerResponse } from "http";
 import type { FSWatcher } from "chokidar";
 import type { Log } from "./utils";
@@ -15,8 +15,6 @@ interface KarmaFile {
 	originalPath: string;
 	path: string;
 	contentPath: string;
-	/** This is a must for mapped stack traces */
-	sourceMap?: SourceMapPayload;
 	type: karma.FilePatternTypes;
 }
 
@@ -36,7 +34,7 @@ function getBasePath(config: karma.ConfigOptions) {
 
 function createPreprocessor(
 	config: karma.ConfigOptions & {
-		esbuild?: { bundleDelay?: number };
+		esbuild?: esbuild.BuildOptions & { bundleDelay?: number };
 	},
 	emitter: karma.Server,
 	log: Log,
@@ -47,29 +45,27 @@ function createPreprocessor(
 	const { bundleDelay = 700 } = config.esbuild || {};
 
 	// Inject middleware to handle the bundled file and map.
-	if (!config.middleware) {
-		config.middleware = [];
-	}
+	config.middleware ||= [];
 	config.middleware.push("esbuild");
 
 	// Create an empty file for Karma to track. Karma requires a real file in
 	// order for it to be injected into the page, even though the middleware
 	// will be responsible for serving it.
-	if (!config.files) {
-		config.files = [];
-	}
-	// Set preprocessor for our file to install sourceMap on it, giving Karma
-	// the ability do unminify stack traces.
-	config.preprocessors![testEntryPoint.file] = ["esbuild"];
-	// For the sourcemapping to work, the file must be served by Karma, preprocessed, and have
-	// the preproccessor attach a file.sourceMap.
+	config.files ||= [];
+	// Push the entry point so that Karma will load the file when the runner starts.
 	config.files.push({
 		pattern: testEntryPoint.file,
 		included: true,
-		served: true,
+		served: false,
 		watched: false,
 	});
 	testEntryPoint.touch();
+
+	// Install our own error formatter to provide sourcemap unminification.
+	// Karma's default error reporter will call it, after it does its own
+	// unminification. It'd be awesome if we could just provide the maps for
+	// them to consume, but it's impossibly difficult.
+	config.formatError = createFormatError(bundle, config.formatError);
 
 	let watcher: FSWatcher | null = null;
 	const watchMode = !config.singleRun && !!config.autoWatch;
@@ -108,19 +104,6 @@ function createPreprocessor(
 		watcher.on("add", onWatch);
 	}
 
-	let startTime = 0;
-	function beforeProcess() {
-		startTime = Date.now();
-		log.info(`Compiling to ${testEntryPoint.file}...`);
-	}
-	function afterProcess() {
-		log.info(
-			`Compiling done (${formatTime(Date.now() - startTime)}, with ${formatTime(
-				bundleDelay,
-			)} delay)`,
-		);
-	}
-
 	let stopped = false;
 	emitter.on("exit", done => {
 		stopped = true;
@@ -131,7 +114,7 @@ function createPreprocessor(
 		// Prevent service closed message when we are still processing
 		if (stopped) return;
 		testEntryPoint.write();
-		return bundle.write(beforeProcess, afterProcess);
+		return bundle.write();
 	}, bundleDelay);
 
 	return async function preprocess(content, file, done) {
@@ -140,18 +123,9 @@ function createPreprocessor(
 		// need to test equality.
 		const filePath = path.normalize(file.originalPath);
 
-		// If we're "preprocessing" the bundle file, all we need is to wait for
-		// the bundle to be generated for it.
-		if (filePath === testEntryPoint.file) {
-			const item = await bundle.read();
-			file.sourceMap = item.map;
-			done(null, item.code);
-			return;
-		}
-
 		testEntryPoint.addFile(filePath);
 		bundle.dirty();
-		buildBundle();
+		await buildBundle();
 
 		// Turn the file into a `dom` type with empty contents to get Karma to
 		// inject the contents as HTML text. Since the contents are empty, it
@@ -168,30 +142,29 @@ createPreprocessor.$inject = [
 	"karmaEsbuildBundler",
 ];
 
-function createSourcemapMiddleware(
-	testEntryPoint: TestEntryPoint,
-	bundle: Bundle,
-) {
+function createMiddleware(bundle: Bundle) {
 	return async function (
 		req: IncomingMessage,
 		res: ServerResponse,
 		next: () => void,
 	) {
-		const match = /^\/absolute([^?#]*)\.map(\?|#|$)/.exec(req.url || "");
+		const match = /^\/absolute([^?#]*?)(\.map)?(?:\?|#|$)/.exec(req.url || "");
 		if (!match) return next();
 
 		const filePath = path.normalize(match[1]);
-		if (filePath !== testEntryPoint.file) return next();
+		if (filePath !== bundle.file) return next();
 
 		const item = await bundle.read();
-		res.setHeader("Content-Type", "application/json");
-		res.end(JSON.stringify(item.map, null, 2));
+		if (match[2] === ".map") {
+			res.setHeader("Content-Type", "application/json");
+			res.end(JSON.stringify(item.map, null, 2));
+		} else {
+			res.setHeader("Content-Type", "text/javascript");
+			res.end(item.code);
+		}
 	};
 }
-createSourcemapMiddleware.$inject = [
-	"karmaEsbuildEntryPoint",
-	"karmaEsbuildBundler",
-];
+createMiddleware.$inject = ["karmaEsbuildBundler"];
 
 function createEsbuildLog(logger: KarmaLogger) {
 	return logger.create("esbuild");
@@ -233,7 +206,7 @@ createTestEntryPoint.$inject = [] as const;
 
 module.exports = {
 	"preprocessor:esbuild": ["factory", createPreprocessor],
-	"middleware:esbuild": ["factory", createSourcemapMiddleware],
+	"middleware:esbuild": ["factory", createMiddleware],
 
 	karmaEsbuildLogger: ["factory", createEsbuildLog],
 	karmaEsbuildConfig: ["factory", createEsbuildConfig],

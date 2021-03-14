@@ -24,7 +24,8 @@
 		"dist/"
 	],
 	"dependencies": {
-		"chokidar": "^3.5.1"
+		"chokidar": "^3.5.1",
+		"source-map": "0.6.1"
 	},
 	"peerDependencies": {
 		"esbuild": ">=0.8.45"
