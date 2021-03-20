@@ -22,6 +22,12 @@ export function debounce<A extends any[], R>(
 	fn: (...args: A) => R,
 	ms: number,
 ) {
+	// This is really just for our tests. Don't do this in your tests, you'll
+	// regret the constant CPU spikes.
+	if (ms < 0) {
+		return fn;
+	}
+
 	let timeout: NodeJS.Timeout;
 	let _args: A | undefined;
 	let _deferred: Deferred<R> | undefined;
