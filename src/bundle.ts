@@ -22,10 +22,10 @@ export class Bundle {
 	// Dirty signifies that that the current result is stale, and a new build is
 	// needed. It's reset during the next build.
 	private _dirty = false;
-	// buildsInProgress tracks the number of builds. When a build takes too
-	// long, a new build may have started before the original completed. In this
-	// case, we resolve the old build with the latest result.
-	private buildsInProgress = 0;
+	// buildInProgress tracks the in-progress build. When a build takes too
+	// long, a new build may have been requsted before the original completed.
+	// In this case, we resolve that in-progress build with the pending one.
+	private buildInProgress: Promise<unknown> | null = null;
 	private deferred = new Deferred<BundledFile>();
 	private incrementalBuild: esbuild.BuildIncremental | null = null;
 	private startTime = 0;
@@ -62,18 +62,40 @@ export class Bundle {
 	}
 
 	async write() {
-		if (this.buildsInProgress === 0) this.beforeProcess();
-		this.buildsInProgress++;
+		if (this.buildInProgress === null) {
+			this.beforeProcess();
+		} else {
+			// Wait for the previous build to happen before we continue. This prevents
+			// any reentrant behavior, and guarnatees we can get an initial bundle to
+			// create incremental builds from.
+			await this.buildInProgress;
 
+			// There have been multiple calls to write in the time we were
+			// waiting for the in-progress build. Instead of making multiple
+			// calls to rebuild, we resolve with the new in-progress build. One
+			// of the write calls "won" this wait on the in-progress build, and
+			// that winner will eventually resolve the deferred.
+			if (this.buildInProgress !== null) {
+				return this.deferred.promise;
+			}
+		}
 		const { deferred } = this;
-		const result = await this.bundle();
+		this._dirty = false;
 
-		// The build took so long, we've already had another write.
-		// Instead of serving a stale build, let's wait for the new one to resolve.
-		this.buildsInProgress--;
-		if (this.buildsInProgress > 0 || this._dirty) {
-			deferred.resolve(this.deferred.promise);
-			return deferred.promise;
+		const build = this.bundle();
+		this.buildInProgress = build;
+		const result = await build;
+		this.buildInProgress = null;
+
+		// The build took so long, we've already had another test file dirty the
+		// bundle. Instead of serving a stale build, let's wait for the new one
+		// to resolve. The new build either hasn't called `write` yet, or it's
+		// waiting in the `await this.buildInProgress` above. Either way, it'll
+		// eventually fire off a new rebuild and resolve the deferred.
+		if (deferred !== this.deferred) {
+			const { promise } = this.deferred;
+			deferred.resolve(promise);
+			return promise;
 		}
 
 		this.afterProcess();
@@ -100,7 +122,10 @@ export class Bundle {
 		// Wait for any in-progress builds to finish. At this point, we know no
 		// new ones will come in, we're just waiting for the current one to
 		// finish running.
-		if (this.buildsInProgress > 0 || this._dirty) {
+		if (this.buildInProgress || this._dirty) {
+			// Wait on the deffered, not the buildInProgress, because the dirty flag
+			// means a new build is imminent. The deferred will only be resolved after
+			// that build is done.
 			await this.deferred.promise;
 		}
 		// Releasing the result allows the child process to end.
@@ -110,7 +135,6 @@ export class Bundle {
 
 	private async bundle() {
 		try {
-			this._dirty = false;
 			if (this.incrementalBuild) {
 				const result = await this.incrementalBuild.rebuild();
 				return this.processResult(result as BuildResult);
@@ -118,7 +142,6 @@ export class Bundle {
 
 			const result = (await esbuild.build(this.config)) as BuildResult;
 			this.incrementalBuild = result;
-
 			return this.processResult(result);
 		} catch (err) {
 			this.log.error(err.message);
