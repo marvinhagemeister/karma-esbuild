@@ -46,7 +46,7 @@ export async function run(config: any) {
 	});
 
 	const files = output.stdout.join("\n").match(/file: .*/g);
-	assert.equal(files?.length, 8, "not all files were built");
+	assert.equal(files?.length, 8);
 
 	// A full build should happen, then the rebuild.
 	const firstBuild = files.splice(0, 4);
@@ -55,15 +55,11 @@ export async function run(config: any) {
 
 	// We expect the first build to have loaded all 4 files in the esbuild plugin.
 	// Only then can the second build start.
-	assert.deepEqual(
-		firstBuild,
-		files,
-		"first build and second build should contain complete set of files",
-	);
+	assert.deepEqual(firstBuild, files);
 
+	// Only one build and run should happen,
 	assert.equal(
 		output.stdout.filter(line => /2 tests completed/.test(line)).length,
 		1,
-		"Only one build and run should happen",
 	);
 }
