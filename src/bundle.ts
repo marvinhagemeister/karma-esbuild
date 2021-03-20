@@ -22,9 +22,9 @@ export class Bundle {
 	// Dirty signifies that that the current result is stale, and a new build is
 	// needed. It's reset during the next build.
 	private _dirty = false;
-	// buildInProgress tracks the number of builds. When a build takes too
-	// long, a new build may have started before the original completed. In this
-	// case, we resolve the old build with the latest result.
+	// buildInProgress tracks the in-progress build. When a build takes too
+	// long, a new build may have been requsted before the original completed.
+	// In this case, we resolve that in-progress build with the pending one.
 	private buildInProgress: Promise<unknown> | null = null;
 	private deferred = new Deferred<BundledFile>();
 	private incrementalBuild: esbuild.BuildIncremental | null = null;
