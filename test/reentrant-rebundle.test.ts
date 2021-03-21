@@ -46,20 +46,31 @@ export async function run(config: any) {
 	});
 
 	const files = output.stdout.join("\n").match(/file: .*/g);
-	assert.equal(files?.length, 8);
+	console.log(files);
+	assert(files !== null);
+	assert(files.length >= 4);
+	assert.equal(files.length % 4, 0);
 
-	// A full build should happen, then the rebuild.
-	const firstBuild = files.splice(0, 4);
-	firstBuild.sort();
-	files.sort();
-
-	// We expect the first build to have loaded all 4 files in the esbuild plugin.
-	// Only then can the second build start.
-	assert.deepEqual(firstBuild, files);
+	// We expect all 4 files to be built during each rebuild, with distinct
+	// recompliations. That means no chunk can contain a duplicate file.
+	const chunks = chunk(files, 4);
+	for (let i = 0; i < chunks.length; i++) {
+		const chunk = chunks[i];
+		const distint = new Set(chunk);
+		assert.deepEqual([...distint], chunk, `Chunk ${i} had a duplicate file`);
+	}
 
 	// Only one build and run should happen,
 	assert.equal(
 		output.stdout.filter(line => /2 tests completed/.test(line)).length,
 		1,
 	);
+}
+
+function chunk<T>(array: Array<T>, size: number) {
+	const chunks = [];
+	for (let i = 0; i < array.length; i += size) {
+		chunks.push(array.slice(i, i + size));
+	}
+	return chunks;
 }

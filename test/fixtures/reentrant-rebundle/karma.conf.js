@@ -3,7 +3,6 @@ const { baseConfig } = require("../../base.karma.conf");
 const path = require("path");
 
 module.exports = function (config) {
-	let setups = 0;
 	config.set({
 		...baseConfig,
 
