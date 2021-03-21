@@ -8,7 +8,7 @@ describe("simple", () => {
 		const { pathname } = new URL(script.src);
 		const js = await fetchPolyfill(script.src).then(res => res.text());
 
-		const m = js.match(/\/\/# sourceMappingURL=(.*)$/);
+		const m = js.match(/\/\/# sourceMappingURL=(.*)/);
 		if (!m || m.length < 1) {
 			throw new Error("Unable to find source map url");
 		}

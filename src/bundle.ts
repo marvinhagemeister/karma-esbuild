@@ -6,7 +6,7 @@ import type { Log } from "./utils";
 import type { RawSourceMap } from "source-map";
 
 interface BundledFile {
-	code: string;
+	code: Buffer;
 	map: RawSourceMap;
 }
 
@@ -41,11 +41,11 @@ export class Bundle {
 			target: "es2015",
 			...config,
 			entryPoints: [file],
+			sourcemap: true,
 			bundle: true,
 			write: false,
 			incremental: true,
 			platform: "browser",
-			sourcemap: "external",
 			define: {
 				"process.env.NODE_ENV": JSON.stringify(
 					process.env.NODE_ENV || "development",
@@ -147,7 +147,7 @@ export class Bundle {
 			this.log.error(err.message);
 
 			return {
-				code: `console.error(${JSON.stringify(err.message)})`,
+				code: Buffer.from(`console.error(${JSON.stringify(err.message)})`),
 				map: {} as RawSourceMap,
 			};
 		}
@@ -155,11 +155,10 @@ export class Bundle {
 
 	private processResult(result: BuildResult) {
 		const map = JSON.parse(result.outputFiles[0].text) as RawSourceMap;
-		const source = result.outputFiles[1].text;
+		const source = result.outputFiles[1];
 
 		const basename = path.basename(this.file);
-		const code = source + `\n//# sourceMappingURL=${basename}.map`;
-		// outdir is guaranteed to be the root of the file system.
+		const code = Buffer.from(source.contents.buffer);
 		const outdir = this.config.outdir!;
 		map.sources = map.sources.map(s => path.join(outdir, s));
 		map.file = basename;
