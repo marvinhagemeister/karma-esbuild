@@ -23,7 +23,7 @@ export class Bundle {
 	// needed. It's reset during the next build.
 	private _dirty = false;
 	// buildInProgress tracks the in-progress build. When a build takes too
-	// long, a new build may have been requsted before the original completed.
+	// long, a new build may have been requested before the original completed.
 	// In this case, we resolve that in-progress build with the pending one.
 	private buildInProgress: Promise<unknown> | null = null;
 	private deferred = new Deferred<BundledFile>();
@@ -66,7 +66,7 @@ export class Bundle {
 			this.beforeProcess();
 		} else {
 			// Wait for the previous build to happen before we continue. This prevents
-			// any reentrant behavior, and guarnatees we can get an initial bundle to
+			// any reentrant behavior, and guarantees we can get an initial bundle to
 			// create incremental builds from.
 			await this.buildInProgress;
 
@@ -123,7 +123,7 @@ export class Bundle {
 		// new ones will come in, we're just waiting for the current one to
 		// finish running.
 		if (this.buildInProgress || this._dirty) {
-			// Wait on the deffered, not the buildInProgress, because the dirty flag
+			// Wait on the deferred, not the buildInProgress, because the dirty flag
 			// means a new build is imminent. The deferred will only be resolved after
 			// that build is done.
 			await this.deferred.promise;
