@@ -46,7 +46,6 @@ export async function run(config: any) {
 	});
 
 	const files = output.stdout.join("\n").match(/file: .*/g);
-	console.log(files);
 	assert(files !== null);
 	assert(files.length >= 4);
 	assert.equal(files.length % 4, 0);

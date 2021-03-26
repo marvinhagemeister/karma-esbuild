@@ -21,7 +21,7 @@ export class Bundle {
 
 	// Dirty signifies that that the current result is stale, and a new build is
 	// needed. It's reset during the next build.
-	private _dirty = false;
+	private _dirty = true;
 	// buildInProgress tracks the in-progress build. When a build takes too
 	// long, a new build may have been requested before the original completed.
 	// In this case, we resolve that in-progress build with the pending one.
@@ -37,28 +37,18 @@ export class Bundle {
 		this.file = file;
 		this.log = log;
 
-		this.config = {
-			target: "es2015",
-			...config,
-			entryPoints: [file],
-			sourcemap: true,
-			bundle: true,
-			write: false,
-			incremental: true,
-			platform: "browser",
-			define: {
-				"process.env.NODE_ENV": JSON.stringify(
-					process.env.NODE_ENV || "development",
-				),
-				...config.define,
-			},
-		};
+		this.config = { ...config, entryPoints: [file] };
 	}
 
 	dirty() {
 		if (this._dirty) return;
 		this._dirty = true;
 		this.deferred = new Deferred();
+		if (this.buildInProgress) this.write();
+	}
+
+	isDirty() {
+		return this._dirty;
 	}
 
 	async write() {

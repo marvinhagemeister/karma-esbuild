@@ -2,11 +2,15 @@ import { SourceMapConsumer } from "source-map";
 import * as path from "path";
 
 import type { Bundle } from "./bundle";
+import type { BundlerMap } from "./bundler-map";
 import type { RawSourceMap } from "source-map";
 
 type Formatter = (m: string) => string;
 
-export function createFormatError(bundle: Bundle, formatError?: Formatter) {
+export function createFormatError(
+	bundlerMap: BundlerMap,
+	formatError?: Formatter,
+) {
 	const consumers = new WeakMap<RawSourceMap, SourceMapConsumer>();
 	const regex = /((?:\b[A-Z]:)?\/[^ #?:]+)[^ :]*:(\d+):(\d+)/gi;
 	//             |            |          ||    ||    |^^^^^^ Column
@@ -18,7 +22,7 @@ export function createFormatError(bundle: Bundle, formatError?: Formatter) {
 	function get(sourcemap: RawSourceMap) {
 		const existing = consumers.get(sourcemap);
 		if (existing) return existing;
-		const consumer = new SourceMapConsumer(bundle.sourcemap);
+		const consumer = new SourceMapConsumer(sourcemap);
 		consumers.set(sourcemap, consumer);
 		return consumer;
 	}
@@ -30,9 +34,10 @@ export function createFormatError(bundle: Bundle, formatError?: Formatter) {
 	return (message: string) => {
 		const unminified = message.replace(regex, (match, source, line, column) => {
 			source = path.normalize(source);
-			if (source !== bundle.file) return match;
+			if (!bundlerMap.has(source)) return match;
 
 			try {
+				const bundle = bundlerMap.get(source);
 				const consumer = get(bundle.sourcemap);
 				const loc = consumer.originalPositionFor({
 					line: +line,
