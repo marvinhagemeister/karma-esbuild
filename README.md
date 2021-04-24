@@ -43,6 +43,9 @@ module.exports = function (config) {
 				ENABLE_PERFORMANCE: true,
 			},
 			plugins: [createEsbuildPlugin()],
+
+			// Karma-esbuild specific options
+			singleBundle: true, // Merge all test files into one bundle(default: true)
 		},
 	});
 };

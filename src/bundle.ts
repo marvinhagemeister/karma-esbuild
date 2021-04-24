@@ -1,6 +1,7 @@
 import * as path from "path";
 import * as esbuild from "esbuild";
-import { Deferred, formatTime } from "./utils";
+import { EventEmitter } from "events";
+import { Deferred } from "./utils";
 
 import type { Log } from "./utils";
 import type { RawSourceMap } from "source-map";
@@ -15,10 +16,6 @@ type BuildResult = esbuild.BuildIncremental & {
 };
 
 export class Bundle {
-	declare file: string;
-	private declare log: Log;
-	private declare config: esbuild.BuildOptions;
-
 	// Dirty signifies that that the current result is stale, and a new build is
 	// needed. It's reset during the next build.
 	private _dirty = true;
@@ -33,10 +30,12 @@ export class Bundle {
 	// The sourcemap must be synchronously available for formatError.
 	sourcemap = {} as RawSourceMap;
 
-	constructor(file: string, log: Log, config: esbuild.BuildOptions) {
-		this.file = file;
-		this.log = log;
-
+	constructor(
+		private file: string,
+		private log: Log,
+		private config: esbuild.BuildOptions,
+		private emitter: EventEmitter,
+	) {
 		this.config = { ...config, entryPoints: [file] };
 	}
 
@@ -95,13 +94,20 @@ export class Bundle {
 
 	private beforeProcess() {
 		this.startTime = Date.now();
-		this.log.info(`Compiling to ${this.file}...`);
+		this.emitter.emit("start", {
+			type: "start",
+			file: this.file,
+			time: this.startTime,
+		});
 	}
 
 	private afterProcess() {
-		this.log.info(
-			`Compiling done (${formatTime(Date.now() - this.startTime)})`,
-		);
+		this.emitter.emit("done", {
+			type: "done",
+			file: this.file,
+			startTime: this.startTime,
+			endTime: Date.now(),
+		});
 	}
 
 	read() {
@@ -121,6 +127,7 @@ export class Bundle {
 		// Releasing the result allows the child process to end.
 		this.incrementalBuild?.rebuild.dispose();
 		this.incrementalBuild = null;
+		this.emitter.emit("stop", { type: "stop", file: this.file });
 	}
 
 	private async bundle() {
