@@ -18,6 +18,13 @@ interface KarmaFile {
 	type: karma.FilePatternTypes;
 }
 
+interface KarmaEsbuildConfig {
+	esbuild?: esbuild.BuildOptions & {
+		bundleDelay?: number;
+		singleBundle?: boolean;
+	};
+}
+
 type KarmaPreprocess = (
 	content: any,
 	file: KarmaFile,
@@ -33,9 +40,7 @@ function getBasePath(config: karma.ConfigOptions) {
 }
 
 function createPreprocessor(
-	config: karma.ConfigOptions & {
-		esbuild?: esbuild.BuildOptions & { bundleDelay?: number };
-	},
+	config: karma.ConfigOptions & KarmaEsbuildConfig,
 	emitter: karma.Server,
 	testEntryPoint: TestEntryPoint,
 	bundlerMap: BundlerMap,
@@ -165,9 +170,7 @@ createMiddleware.$inject = ["karmaEsbuildBundlerMap"];
 
 function createEsbuildBundlerMap(
 	logger: KarmaLogger,
-	karmaConfig: karma.ConfigOptions & {
-		esbuild?: esbuild.BuildOptions & { bundleDelay?: number };
-	},
+	karmaConfig: karma.ConfigOptions & KarmaEsbuildConfig,
 ) {
 	const log = logger.create("esbuild");
 	const basePath = getBasePath(karmaConfig);
