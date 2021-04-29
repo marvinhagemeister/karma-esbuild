@@ -1,6 +1,6 @@
 import * as path from "path";
 import * as esbuild from "esbuild";
-import { EventEmitter } from "events";
+import type { EventEmitter } from "events";
 import { Deferred } from "./utils";
 
 import type { Log } from "./utils";

@@ -1,4 +1,4 @@
-import { EventEmitter } from "events";
+import type { EventEmitter } from "events";
 import { Bundle } from "./bundle";
 
 import type esbuild from "esbuild";
