@@ -48,8 +48,11 @@ function createPreprocessor(
 ): KarmaPreprocess {
 	const log = logger.create("esbuild");
 	const basePath = getBasePath(config);
-	const { bundleDelay = 700, format, singleBundle = true } =
-		config.esbuild || {};
+	const {
+		bundleDelay = 700,
+		format,
+		singleBundle = true,
+	} = config.esbuild || {};
 
 	// Inject middleware to handle the bundled file and map.
 	config.middleware ||= [];
@@ -198,21 +201,24 @@ function createMiddleware(bundlerMap: BundlerMap, config: karma.ConfigOptions) {
 		res: ServerResponse,
 		next: () => void,
 	) {
-		const match = /^\/(?:absolute|base\/)([^?#]*?)(\.map)?(?:\?|#|$)/.exec(
+		const match = /^\/(absolute|base\/)([^?#]*?)(\.map)?(?:\?|#|$)/.exec(
 			req.url || "",
 		);
 		if (!match) {
 			return next();
 		}
 
-		const absolutePath = path.isAbsolute(match[1])
-			? match[1]
-			: path.join(config.basePath!, match[1]);
+		const type = match[1];
+		const fileUrl = match[2];
+		const isSourceMap = match[3] === ".map";
+
+		const absolutePath =
+			type === "absolute" ? fileUrl : path.join(config.basePath!, fileUrl);
 		const filePath = path.normalize(absolutePath);
 		if (!bundlerMap.has(filePath)) return next();
 
 		const item = await bundlerMap.read(filePath);
-		if (match[2] === ".map") {
+		if (isSourceMap) {
 			res.setHeader("Content-Type", "application/json");
 			res.end(JSON.stringify(item.map, null, 2));
 		} else {
