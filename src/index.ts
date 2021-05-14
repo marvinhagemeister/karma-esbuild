@@ -193,7 +193,7 @@ createPreprocessor.$inject = [
 	"logger",
 ];
 
-function createMiddleware(bundlerMap: BundlerMap, config: karma.ConfigOptions) {
+function createMiddleware(bundlerMap: BundlerMap) {
 	return async function (
 		req: IncomingMessage,
 		res: ServerResponse,
@@ -206,13 +206,10 @@ function createMiddleware(bundlerMap: BundlerMap, config: karma.ConfigOptions) {
 			return next();
 		}
 
-		const type = match[1];
 		const fileUrl = match[2];
 		const isSourceMap = match[3] === ".map";
 
-		const absolutePath =
-			type === "absolute" ? fileUrl : path.join(config.basePath!, fileUrl);
-		const filePath = path.normalize(absolutePath);
+		const filePath = path.normalize(fileUrl);
 		if (!bundlerMap.has(filePath)) return next();
 
 		const item = await bundlerMap.read(filePath);
@@ -225,7 +222,7 @@ function createMiddleware(bundlerMap: BundlerMap, config: karma.ConfigOptions) {
 		}
 	};
 }
-createMiddleware.$inject = ["karmaEsbuildBundlerMap", "config"];
+createMiddleware.$inject = ["karmaEsbuildBundlerMap"];
 
 function createEsbuildBundlerMap(
 	logger: KarmaLogger,
