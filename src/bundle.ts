@@ -43,7 +43,6 @@ export class Bundle {
 		if (this._dirty) return;
 		this._dirty = true;
 		this.deferred = new Deferred();
-		if (this.buildInProgress) this.write();
 	}
 
 	isDirty() {
