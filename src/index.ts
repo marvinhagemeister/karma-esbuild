@@ -147,7 +147,7 @@ function createPreprocessor(
 		}
 	});
 
-	const buildBundle = debounce(() => {
+	const buildSingleBundle = debounce(() => {
 		// Prevent service closed message when we are still processing
 		if (stopped) return;
 		testEntryPoint.write();
@@ -173,7 +173,7 @@ function createPreprocessor(
 		bundle.dirty();
 
 		if (singleBundle) {
-			await buildBundle();
+			await buildSingleBundle();
 			// Turn the file into a `dom` type with empty contents to get Karma to
 			// inject the contents as HTML text. Since the contents are empty, it
 			// effectively drops the script from being included into the Karma runner.
