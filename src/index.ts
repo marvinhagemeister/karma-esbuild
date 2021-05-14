@@ -136,8 +136,8 @@ function createPreprocessor(
 		pendingBundles.add(ev.file);
 	});
 
-	bundlerMap.on("stop", ev => {
-		pendingBundles.delete(ev.file);
+	bundlerMap.on("stop", () => {
+		pendingBundles.clear();
 	});
 
 	bundlerMap.on("done", ev => {
