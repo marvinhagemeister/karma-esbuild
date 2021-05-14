@@ -181,8 +181,6 @@ function createPreprocessor(
 			done(null, "");
 		} else {
 			const res = await bundlerMap.read(filePath);
-
-			(file as any).sourceMap = res.map;
 			done(null, res.code);
 		}
 	};
