@@ -2,6 +2,8 @@ import { foo } from "./dep1";
 
 describe("Suite A", () => {
 	it("should work", () => {
-		return foo();
+		if (foo() !== 0) {
+			throw new Error("fail");
+		}
 	});
 });
