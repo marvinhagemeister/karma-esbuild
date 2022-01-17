@@ -85,9 +85,14 @@ function createPreprocessor(
 	let watcher: FSWatcher | null = null;
 	const watchMode = !config.singleRun && !!config.autoWatch;
 	if (watchMode) {
-		// Initialize watcher to listen for changes in basePath so
-		// that we'll be notified of any new files
-		watcher = chokidar.watch([basePath], {
+		const watchPaths = Object.entries(config?.preprocessors ?? {})
+			// only inlcude paths that include "esbuild" in the array of preprocessors
+			.filter(([_path, preprocessors]) => preprocessors.includes("esbuild"))
+			.map(([path]) => path);
+
+		// Initialize watcher to listen for changes on paths that have been
+		// configured to be built by esbuild so we'll be notified of any new files
+		watcher = chokidar.watch(watchPaths, {
 			ignoreInitial: true,
 			// Ignore dot files and anything from node_modules
 			ignored: /(^|[/\\])(\.|node_modules[/\\])/,
