@@ -93,7 +93,7 @@ function createPreprocessor(
 			ignored: /(^|[/\\])(\.|node_modules[/\\])/,
 		});
 
-		if (config?.exclude) watcher.unwatch(config.exclude);
+		if (config.exclude) watcher.unwatch(config.exclude);
 
 		const alreadyWatched = config.files.reduce((watched: string[], file) => {
 			if (typeof file === "string") {
