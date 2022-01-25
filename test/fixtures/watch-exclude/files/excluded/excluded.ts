@@ -1,3 +1,3 @@
-export function excluded(): string {
-	return "excluded";
+export function excluded(): number {
+	return 123;
 }
