@@ -213,11 +213,7 @@ function createMiddleware(bundlerMap: BundlerMap, config: karma.ConfigOptions) {
 
 		let filePath = path.normalize(fileUrl);
 		const basePath = config.basePath || "";
-		if (
-			basePath &&
-			match[1] == "base/" &&
-			!path.isAbsolute(filePath)
-		) {
+		if (basePath && match[1] == "base/") {
 			const absolute = path.join(basePath, filePath);
 			// Verify that we're in the same basepath if filePath is `../../foo`
 			if (absolute.startsWith(basePath)) {
