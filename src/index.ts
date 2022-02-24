@@ -36,7 +36,7 @@ interface KarmaLogger {
 }
 
 function getBasePath(config: karma.ConfigOptions) {
-	return config.basePath || process.cwd();
+	return config.basePath ? path.normalize(config.basePath) : process.cwd();
 }
 
 function createPreprocessor(
@@ -47,7 +47,6 @@ function createPreprocessor(
 	logger: KarmaLogger,
 ): KarmaPreprocess {
 	const log = logger.create("esbuild");
-	const basePath = getBasePath(config);
 	const {
 		bundleDelay = 700,
 		format,
@@ -87,6 +86,7 @@ function createPreprocessor(
 	if (watchMode) {
 		// Initialize watcher to listen for changes in basePath so
 		// that we'll be notified of any new files
+		const basePath = getBasePath(config);
 		watcher = chokidar.watch([basePath], {
 			ignoreInitial: true,
 			// Ignore dot files and anything from node_modules
@@ -195,7 +195,7 @@ createPreprocessor.$inject = [
 	"logger",
 ];
 
-function createMiddleware(bundlerMap: BundlerMap) {
+function createMiddleware(bundlerMap: BundlerMap, config: karma.ConfigOptions) {
 	return async function (
 		req: IncomingMessage,
 		res: ServerResponse,
@@ -211,7 +211,15 @@ function createMiddleware(bundlerMap: BundlerMap) {
 		const fileUrl = match[2];
 		const isSourceMap = match[3] === ".map";
 
-		const filePath = path.normalize(fileUrl);
+		let filePath = path.normalize(fileUrl);
+		if (match[1] == "base/") {
+			const basePath = getBasePath(config);
+			const absolute = path.join(basePath, filePath);
+			// Verify that we're in the same basepath if filePath is `../../foo`
+			if (absolute.startsWith(basePath)) {
+				filePath = absolute;
+			}
+		}
 		if (!bundlerMap.has(filePath)) return next();
 
 		const item = await bundlerMap.read(filePath);
@@ -224,7 +232,7 @@ function createMiddleware(bundlerMap: BundlerMap) {
 		}
 	};
 }
-createMiddleware.$inject = ["karmaEsbuildBundlerMap"];
+createMiddleware.$inject = ["karmaEsbuildBundlerMap", "config"];
 
 function createEsbuildBundlerMap(
 	logger: KarmaLogger,
