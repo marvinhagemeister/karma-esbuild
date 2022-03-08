@@ -183,6 +183,7 @@ function createPreprocessor(
 			done(null, "");
 		} else {
 			const res = await bundlerMap.read(filePath);
+			file.path = file.originalPath.replace(/\.[^\/]*$/, ".js");
 			done(null, res.code);
 		}
 	};

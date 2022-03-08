@@ -33,7 +33,7 @@ export function debounce<R>(fn: () => R, ms: number) {
 		try {
 			deferred.resolve(fn());
 		} catch (e) {
-			deferred.reject(e);
+			deferred.reject(e as Error);
 		}
 	}
 	return (): Promise<R> => {

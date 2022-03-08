@@ -6,6 +6,11 @@ export function fetchPolyfill(input) {
 			if (xhr.readyState == /* COMPLETE */ 4) {
 				resolve({
 					status: xhr.status,
+					headers: {
+						get: name => {
+							return xhr.getResponseHeader(name);
+						},
+					},
 					text: () => {
 						return Promise.resolve(xhr.responseText);
 					},
