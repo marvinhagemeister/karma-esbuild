@@ -20,11 +20,9 @@ describe("simple", () => {
 			);
 		}
 
-		console.log("FETCH", pathname);
 		const mapText = await fetchPolyfill(`${pathname}.map`).then(res =>
 			res.text(),
 		);
-		console.log("FETCH RESULT", mapText);
 		const sources = JSON.parse(mapText).sources.sort();
 
 		if (sources.length !== expectedSources.length) {

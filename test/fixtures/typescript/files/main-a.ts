@@ -25,4 +25,16 @@ describe("simple", () => {
 			throw new Error(type);
 		}
 	});
+
+	it("should serve .js.map", async () => {
+		const script = document.querySelector('script[src*="main-a.js"]');
+
+		const src = `${script.src.replace(/[?#].*/, '')}.map`;
+		const resp = await fetchPolyfill(src);
+		if (resp.status !== 200) {
+			throw new Error(resp.status);
+		}
+
+		JSON.parse(await resp.text());
+	});
 });

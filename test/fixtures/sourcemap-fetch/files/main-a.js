@@ -3,7 +3,7 @@ import { fetchPolyfill } from "../../../fetch-polyfill.js";
 describe("sourcemap-fetch", () => {
 	async function getMap(selector) {
 		const script = document.querySelector(selector);
-		const url = script.src.replace(/[?#].+/, "") + ".map";
+		const url = script.src.replace(/[?#].*/, "") + ".map";
 		const resp = await fetchPolyfill(url);
 		if (resp.status >= 400) {
 			throw resp.status;
