@@ -159,10 +159,14 @@ function createPreprocessor(
 	}, bundleDelay);
 
 	return async function preprocess(content, file, done) {
+		// We normalize the file extension to always be '.js', which allows us to
+		// run '.ts' files as test entry-points in a `singleBundle: false` setup.
+		const jsPath = file.originalPath.replace(/\.[^/]+$/, '.js');
+
 		// Karma likes to turn a win32 path (C:\foo\bar) into a posix-like path (C:/foo/bar).
 		// Normally this wouldn't be so bad, but `bundle.file` is a true win32 path, and we
 		// need to test equality.
-		let filePath = path.normalize(file.originalPath);
+		let filePath = path.normalize(jsPath);
 
 		if (singleBundle) {
 			testEntryPoint.addFile(filePath);
@@ -183,6 +187,7 @@ function createPreprocessor(
 			done(null, "");
 		} else {
 			const res = await bundlerMap.read(filePath);
+			file.path = jsPath;
 			done(null, res.code);
 		}
 	};

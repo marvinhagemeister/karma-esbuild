@@ -34,7 +34,6 @@ const envPlugin = {
 };
 
 module.exports = function (config) {
-	console.log(__dirname);
 	config.set({
 		...baseConfig,
 		preprocessors: {

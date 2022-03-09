@@ -6,6 +6,6 @@ export async function run(config: Config) {
 	const { output } = await runKarma(config, "typescript");
 
 	await assertEventuallyProgresses(output.stdout, () => {
-		return output.stdout.some(line => /1 test completed/.test(line));
+		return output.stdout.some(line => /4 tests completed/.test(line));
 	});
 }

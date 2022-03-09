@@ -140,10 +140,11 @@ export class Bundle {
 			this.incrementalBuild = result;
 			return this.processResult(result);
 		} catch (err) {
-			this.log.error(err.message);
+			const { message } = err as Error;
+			this.log.error(message);
 
 			return {
-				code: Buffer.from(`console.error(${JSON.stringify(err.message)})`),
+				code: Buffer.from(`console.error(${JSON.stringify(message)})`),
 				map: {} as RawSourceMap,
 			};
 		}
