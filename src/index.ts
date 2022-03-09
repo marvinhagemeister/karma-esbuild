@@ -75,18 +75,23 @@ function createPreprocessor(
 		bundlerMap.addPotential(testEntryPoint.file);
 	}
 
+	const basePath = getBasePath(config);
+
 	// Install our own error formatter to provide sourcemap unminification.
 	// Karma's default error reporter will call it, after it does its own
 	// unminification. It'd be awesome if we could just provide the maps for
 	// them to consume, but it's impossibly difficult.
-	config.formatError = createFormatError(bundlerMap, config.formatError);
+	config.formatError = createFormatError(
+		bundlerMap,
+		basePath,
+		config.formatError,
+	);
 
 	let watcher: FSWatcher | null = null;
 	const watchMode = !config.singleRun && !!config.autoWatch;
 	if (watchMode) {
 		// Initialize watcher to listen for changes in basePath so
 		// that we'll be notified of any new files
-		const basePath = getBasePath(config);
 		watcher = chokidar.watch([basePath], {
 			ignoreInitial: true,
 			// Ignore dot files and anything from node_modules
@@ -161,7 +166,7 @@ function createPreprocessor(
 	return async function preprocess(content, file, done) {
 		// We normalize the file extension to always be '.js', which allows us to
 		// run '.ts' files as test entry-points in a `singleBundle: false` setup.
-		const jsPath = file.originalPath.replace(/\.[^/]+$/, '.js');
+		const jsPath = file.originalPath.replace(/\.[^/]+$/, ".js");
 
 		// Karma likes to turn a win32 path (C:\foo\bar) into a posix-like path (C:/foo/bar).
 		// Normally this wouldn't be so bad, but `bundle.file` is a true win32 path, and we
