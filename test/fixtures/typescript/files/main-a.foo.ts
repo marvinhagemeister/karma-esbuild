@@ -13,7 +13,7 @@ describe("simple", () => {
 	});
 
 	it("should serve with correct content-type", async () => {
-		const script = document.querySelector('script[src*="main-a.js"]');
+		const script = document.querySelector('script[src*="main-a.foo.js"]');
 
 		const resp = await fetchPolyfill(script.src);
 		if (resp.status !== 200) {
@@ -27,9 +27,9 @@ describe("simple", () => {
 	});
 
 	it("should serve .js.map", async () => {
-		const script = document.querySelector('script[src*="main-a.js"]');
+		const script = document.querySelector('script[src*="main-a.foo.js"]');
 
-		const src = `${script.src.replace(/[?#].*/, '')}.map`;
+		const src = `${script.src.replace(/[?#].*/, "")}.map`;
 		const resp = await fetchPolyfill(src);
 		if (resp.status !== 200) {
 			throw new Error(resp.status);
