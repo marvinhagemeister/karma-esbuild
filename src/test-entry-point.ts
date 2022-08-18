@@ -16,7 +16,7 @@ export class TestEntryPoint {
 
 	addFile(file: string) {
 		const normalized = path
-			.relative(this.file, file)
+			.relative(this.dir, file)
 			.replace(/\\/g, path.posix.sep);
 
 		if (this.files.has(normalized)) return;
