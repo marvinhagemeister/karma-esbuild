@@ -8,7 +8,7 @@ export class TestEntryPoint {
 	private dirty = false;
 	private files = new Set<string>();
 
-	private dir = os.tmpdir();
+	private dir = fs.realpathSync(os.tmpdir());
 	// The `file` is a dummy, meant to allow Karma to work. But, we can't write
 	// to it without causing Karma to refresh. So, we have a real file that we
 	// write to, and allow esbuild to build from.
