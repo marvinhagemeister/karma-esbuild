@@ -28,14 +28,14 @@
 		"source-map": "0.6.1"
 	},
 	"peerDependencies": {
-		"esbuild": ">=0.8.45"
+		"esbuild": ">=0.17.0"
 	},
 	"devDependencies": {
 		"@types/karma": "^6.3.0",
 		"@types/mocha": "^8.2.2",
 		"@types/node": "^15.0.3",
 		"errorstacks": "^2.3.2",
-		"esbuild": "^0.11.21",
+		"esbuild": "^0.17.2",
 		"husky": "^4.3.6",
 		"jsdom": "16.5.3",
 		"karma": "^5.2.3",
