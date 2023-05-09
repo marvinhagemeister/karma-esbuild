@@ -23,7 +23,10 @@ describe("simple", () => {
 		const mapText = await fetchPolyfill(`${pathname}.map`).then(res =>
 			res.text(),
 		);
-		const sources = JSON.parse(mapText).sources.sort();
+		const ignore = /(env-ns)|-bundle.js$/;
+		const sources = JSON.parse(mapText)
+			.sources.filter(s => !ignore.test(s))
+			.sort();
 
 		if (sources.length !== expectedSources.length) {
 			throw new Error(

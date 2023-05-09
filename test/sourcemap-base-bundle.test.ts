@@ -18,7 +18,7 @@ export async function run(config: any) {
 
 	// Check for mapped dependency file
 	await assertEventuallyProgresses(output.stdout, () => {
-		assert.match(output.stdout.join("\n"), /dep2\.js:3:1/);
+		assert.match(output.stdout.join("\n"), /dep2\.js:2:8/);
 		return true;
 	});
 }

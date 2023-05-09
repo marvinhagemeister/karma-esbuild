@@ -264,7 +264,6 @@ function createEsbuildBundlerMap(
 		sourcemap: true,
 		bundle: true,
 		write: false,
-		incremental: true,
 		platform: "browser",
 		define: {
 			"process.env.NODE_ENV": JSON.stringify(

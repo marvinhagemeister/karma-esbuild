@@ -11,10 +11,6 @@ interface BundledFile {
 	map: RawSourceMap;
 }
 
-type BuildResult = esbuild.BuildIncremental & {
-	outputFiles: esbuild.OutputFile[];
-};
-
 export class Bundle {
 	// Dirty signifies that that the current result is stale, and a new build is
 	// needed. It's reset during the next build.
@@ -24,7 +20,7 @@ export class Bundle {
 	// In this case, we resolve that in-progress build with the pending one.
 	private buildInProgress: Promise<unknown> | null = null;
 	private deferred = new Deferred<BundledFile>();
-	private incrementalBuild: esbuild.BuildIncremental | null = null;
+	private context: esbuild.BuildContext | null = null;
 	private startTime = 0;
 
 	// The sourcemap must be synchronously available for formatError.
@@ -124,21 +120,30 @@ export class Bundle {
 			await this.deferred.promise;
 		}
 		// Releasing the result allows the child process to end.
-		this.incrementalBuild?.rebuild.dispose();
-		this.incrementalBuild = null;
+		this.context?.dispose();
+		this.context = null;
 		this.emitter.emit("stop", { type: "stop", file: this.file });
 	}
 
 	private async bundle() {
 		try {
-			if (this.incrementalBuild) {
-				const result = await this.incrementalBuild.rebuild();
-				return this.processResult(result as BuildResult);
+			if (this.context == null) {
+				this.context = await esbuild.context(this.config);
 			}
 
-			const result = (await esbuild.build(this.config)) as BuildResult;
-			this.incrementalBuild = result;
-			return this.processResult(result);
+			const result = await this.context.rebuild();
+			const { outputFiles } = result;
+
+			if (outputFiles == null || outputFiles.length < 2) {
+				return {
+					code: Buffer.from(
+						`console.error("No output files.", ${JSON.stringify(result)})`,
+					),
+					map: {} as RawSourceMap,
+				};
+			} else {
+				return this.processResult(outputFiles);
+			}
 		} catch (err) {
 			const { message } = err as Error;
 			this.log.error(message);
@@ -150,9 +155,9 @@ export class Bundle {
 		}
 	}
 
-	private processResult(result: BuildResult) {
-		const map = JSON.parse(result.outputFiles[0].text) as RawSourceMap;
-		const source = result.outputFiles[1];
+	private processResult(outputFiles: esbuild.OutputFile[]) {
+		const map = JSON.parse(outputFiles[0].text) as RawSourceMap;
+		const source = outputFiles[1];
 
 		const basename = path.basename(this.file);
 		const code = Buffer.from(source.contents.buffer);
